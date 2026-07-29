@@ -99,7 +99,7 @@ class YallaDriverApp extends StatelessWidget {
           backgroundColor: Colors.white,
           elevation: 0,
         ),
-        pageTransitionsTheme: const PageTransitionsTheme(
+        pageTransitionsTheme: PageTransitionsTheme(
           builders: {
             TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
             TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),

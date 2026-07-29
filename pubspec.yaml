@@ -37,7 +37,7 @@ dependencies:
   google_fonts: ^6.1.0
   animate_do: ^3.3.4
   provider: ^6.1.1
-  font_awesome_flutter: ^10.6.0
+  font_awesome_flutter: ^10.8.0
   dio: ^5.4.0
   socket_io_client: ^2.0.3+1
   flutter_secure_storage: ^9.2.2
