@@ -136,11 +136,11 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
         socket.socket.emit('accept_ride', {
           'rideId': acceptedRide['id'],
           'passengerId': acceptedRide['passengerId'],
-          'driverName': 'Ahmed Hassan', // Should fetch from profile
+          'driverName': 'Ahmed Hassan',
           'carModel': 'White Toyota Camry',
           'plate': 'ABC-123'
         });
-        Navigator.pop(context); // close sheet
+        Navigator.pop(context);
         Navigator.push(context, MaterialPageRoute(
           builder: (_) => ActiveRideScreen(rideData: acceptedRide),
         ));
@@ -157,14 +157,12 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       backgroundColor: const Color(0xFF0F172A),
       body: Stack(
         children: [
-          // Background simulation
           Center(
             child: Opacity(
               opacity: 0.3,
               child: Icon(Icons.map_outlined, size: 300, color: Colors.white.withOpacity(0.1)),
             ),
           ),
-          
           SafeArea(
             child: Column(
               children: [
@@ -172,11 +170,11 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                   padding: const EdgeInsets.all(24),
                   child: Row(
                     children: [
-                      Column(
+                      const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('GOVERNORATE', style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.5)),
-                          const Text('Baghdad, Central', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text('GOVERNORATE', style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.5)),
+                          Text('Baghdad, Central', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                         ],
                       ),
                       const Spacer(),
@@ -186,9 +184,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                     ],
                   ),
                 ),
-                
                 const Spacer(),
-                
                 FadeInUp(
                   child: Container(
                     padding: const EdgeInsets.all(32),
