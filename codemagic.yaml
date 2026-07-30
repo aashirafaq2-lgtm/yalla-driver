@@ -1,6 +1,6 @@
 workflows:
   build-release:
-    name: Yalla Driver Release (Android & iOS)
+    name: Yalla Driver iOS Release (App Store)
     max_build_duration: 60
     instance_type: mac_mini_m1
     environment:
@@ -15,27 +15,15 @@ workflows:
           if [ -f "main.dart" ]; then
             cp main.dart lib/main.dart
           fi
-          flutter create . --platforms=android,ios --org com.yalla --no-pub
-          
-          for f in android/app/build.gradle android/app/build.gradle.kts; do
-            if [ -f "$f" ]; then
-              sed -i '' 's/compileOptions {/compileOptions {\n        coreLibraryDesugaringEnabled true/g' "$f" || true
-              sed -i '' 's/compileOptions {/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/g' "$f" || true
-              sed -i '' 's/dependencies {/dependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.4"/g' "$f" || true
-            fi
-          done
+          flutter create . --platforms=ios --org com.yalla --no-pub
       - name: Set up dependencies
         script: |
           flutter packages pub get
-      - name: Build Android APK
-        script: |
-          flutter build apk --release
       - name: Build iOS App Bundle
         script: |
           flutter build ios --release --no-codesign --config-only
           xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO clean build
     artifacts:
-      - build/app/outputs/flutter-apk/*.apk
       - build/ios/iphoneos/*.app
       - ios/build/Build/Products/Release-iphoneos/*.app
       - /tmp/xcodebuild.log
