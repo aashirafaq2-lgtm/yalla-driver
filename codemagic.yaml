@@ -10,11 +10,27 @@ workflows:
     scripts:
       - name: Organize Flutter structure
         script: |
+          mkdir -p assets/images
           mkdir -p lib
           if [ -f "main.dart" ]; then
             cp main.dart lib/main.dart
           fi
           flutter create . --platforms=android,ios --org com.yalla --no-pub
+          python3 -c '
+import glob
+for p in glob.glob("android/app/build.gradle*"):
+    with open(p, "r") as f:
+        c = f.read()
+    if "coreLibraryDesugaringEnabled" not in c and "isCoreLibraryDesugaringEnabled" not in c:
+        if p.endswith(".kts"):
+            c = c.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true")
+            c = c.replace("dependencies {", "dependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.0.4\")")
+        else:
+            c = c.replace("compileOptions {", "compileOptions {\n        coreLibraryDesugaringEnabled true")
+            c = c.replace("dependencies {", "dependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"")
+        with open(p, "w") as f:
+            f.write(c)
+'
       - name: Set up dependencies
         script: |
           flutter packages pub get
