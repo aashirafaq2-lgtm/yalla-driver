@@ -8,7 +8,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.hamakhorshed.yallaDriver
+        bundle_identifier: com.yalla.yallaDriver
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -20,7 +20,7 @@ workflows:
           if [ -f "main.dart" ]; then
             cp main.dart lib/main.dart
           fi
-          flutter create . --platforms=ios --org com.hamakhorshed --project-name yalla_driver --no-pub
+          flutter create . --platforms=ios --org com.yalla --project-name yalla_driver --no-pub
       - name: Set up dependencies
         script: |
           flutter packages pub get
