@@ -27,6 +27,9 @@ workflows:
       - name: Build iOS App (No Codesign)
         script: |
           flutter build ios --release --no-codesign
+      - name: Fetch signing files
+        script: |
+          app-store-connect fetch-signing-files "com.hamakhorshed.yallaDriver" --type IOS_APP_STORE --create
       - name: Build and Sign IPA
         script: |
           xcode-project use-profiles
