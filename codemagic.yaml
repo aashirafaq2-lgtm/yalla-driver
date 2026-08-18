@@ -20,7 +20,7 @@ workflows:
           if [ -f "main.dart" ]; then
             cp main.dart lib/main.dart
           fi
-          flutter create . --platforms=ios --org com.yalla --project-name yalla_driver --no-pub
+          flutter create . --platforms=ios --org com.yalla --no-pub
       - name: Set up dependencies
         script: |
           flutter packages pub get
