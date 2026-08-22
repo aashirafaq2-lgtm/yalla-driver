@@ -30,6 +30,8 @@ workflows:
           keychain add-certificates --certificate ios_distribution.p12 --certificate-password 12345
       - name: Build iOS App (No Codesign)
         script: |
+          flutter packages pub get
+          flutter pub run flutter_launcher_icons
           flutter build ios --release --no-codesign
 
       - name: Build and Sign IPA
