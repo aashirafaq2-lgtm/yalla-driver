@@ -21,9 +21,13 @@ workflows:
       - name: Set up dependencies
         script: |
           flutter packages pub get
-      - name: Fetch signing files
+      - name: Setup Custom Keychain and Profiles
         script: |
-          app-store-connect fetch-signing-files "com.hamakhorshed.yallaDriver" --type IOS_APP_STORE --create
+          keychain initialize
+          PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_HOME"
+          cp YallaDriver_AppStore.mobileprovision "$PROFILES_HOME/"
+          keychain add-certificates --certificate ios_distribution.p12 --certificate-password 12345
       - name: Build iOS App (No Codesign)
         script: |
           flutter build ios --release --no-codesign
