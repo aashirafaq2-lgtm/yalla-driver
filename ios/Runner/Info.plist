@@ -2,8 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -24,8 +25,17 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to camera for uploading profile and vehicle pictures.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to photos for uploading documents.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs access to microphone when recording videos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app requires access to your location to provide accurate trip routing.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app requires access to your location to provide accurate trip routing.</string>
 	<key>LSRequiresIPhoneOS</key>
-	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
