@@ -37,9 +37,10 @@ workflows:
 
       - name: Build Flutter IPA for App Store
         script: |
-          xcode-project build-ipa \
-            --workspace "ios/Runner.xcworkspace" \
-            --scheme "Runner"
+          flutter build ipa \
+            --release \
+            --export-options-plist=/Users/builder/export_options.plist
+
 
 
     artifacts:
