@@ -6,9 +6,6 @@ workflows:
     integrations:
       app_store_connect: Yalla ASC Key
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.alsamarie.yallaDriver
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -16,8 +13,16 @@ workflows:
       - name: Set up dependencies
         script: |
           flutter packages pub get
+      - name: Setup Custom Keychain and Profiles
+        script: |
+          keychain initialize
+          PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_HOME"
+          cp Yalla_Driver_AppStore.mobileprovision "$PROFILES_HOME/"
+          keychain add-certificates --certificate ios_distribution.p12 --certificate-password 12345
       - name: Build iOS App (No Codesign)
         script: |
+          flutter packages pub get
           flutter build ios --release --no-codesign
       - name: Build and Sign IPA
         script: |
