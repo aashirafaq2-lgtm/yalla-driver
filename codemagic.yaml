@@ -28,10 +28,6 @@ workflows:
           if [ -n "$IPA_FILE" ]; then
             app-store-connect publish --path "$IPA_FILE" --testflight
           fi
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild.log
