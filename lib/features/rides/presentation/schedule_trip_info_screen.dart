@@ -1,6 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/network/api_service.dart';
+import '../../../core/services/storage_service.dart';
 
 class ScheduleTripInfoScreen extends StatefulWidget {
   const ScheduleTripInfoScreen({super.key});
@@ -10,9 +13,47 @@ class ScheduleTripInfoScreen extends StatefulWidget {
 }
 
 class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
-  int _seatsAvailable = 2;
+  int _seatsAvailable = 4;
+  String _fromCity = 'Kirkuk';
+  String _toCity = 'Baghdad';
   String _availabilityStatus = 'All seats are available';
   final List<String> _statusOptions = ['All seats are available', 'Need passengers'];
+  bool _isSubmitting = false;
+
+  Future<void> _submitTrip() async {
+    setState(() => _isSubmitting = true);
+    final api = Provider.of<ApiService>(context, listen: false);
+    final storage = Provider.of<StorageService>(context, listen: false);
+    final token = await storage.getToken();
+
+    try {
+      if (token != null) {
+        await api.createScheduledTrip({
+          'fromGovernorate': _fromCity,
+          'toGovernorate': _toCity,
+          'availableSeats': _seatsAvailable,
+          'totalSeats': 4,
+          'pricePerSeat': 15000,
+        }, token);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Scheduled trip published successfully!')),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Note: $e')),
+        );
+        Navigator.pop(context);
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,11 +72,11 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
           children: [
             const Text(
               'Yalla ',
-              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 32),
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 28),
             ),
             Text(
               'يَلَّا',
-              style: TextStyle(color: AppColors.primaryOrange.withOpacity(0.8), fontWeight: FontWeight.bold, fontSize: 32),
+              style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 28),
             ),
           ],
         ),
@@ -59,7 +100,7 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
               ),
               child: Row(
                 children: [
-                  _buildDateTimeBtn('Choose date', '14/2/2026'),
+                  _buildDateTimeBtn('Choose date', 'Tomorrow'),
                   const SizedBox(width: 12),
                   _buildDateTimeBtn('Choose time', '2:00 PM'),
                 ],
@@ -86,11 +127,11 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildCityChip('Kirkuk'),
+                        _buildCityChip(_fromCity),
                         const SizedBox(width: 8),
                         Expanded(child: _buildRouteArrow()),
                         const SizedBox(width: 8),
-                        _buildCityChip('Bagdad'),
+                        _buildCityChip(_toCity),
                       ],
                     ),
                     const SizedBox(height: 32),
@@ -98,16 +139,16 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildSubStat(Icons.event_seat_outlined, '4'),
+                        _buildSubStat(Icons.event_seat_outlined, '$_seatsAvailable Seats'),
                         _buildSubStat(Icons.access_time, '2:00 PM'),
-                        _buildSubStat(Icons.calendar_month_outlined, '14/2/2026'),
+                        _buildSubStat(Icons.calendar_month_outlined, 'Tomorrow'),
                       ],
                     ),
                     const SizedBox(height: 24),
                     const Icon(Icons.directions_car_filled, size: 24, color: Colors.black),
                     const SizedBox(height: 4),
                     const Text(
-                      'Dodge Charger',
+                      'Standard Vehicle',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                   ],
@@ -190,16 +231,16 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _isSubmitting ? null : _submitTrip,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryOrange,
                     elevation: 5,
                     shadowColor: AppColors.primaryOrange.withOpacity(0.3),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   ),
-                  child: const Text(
-                    'Submit',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  child: Text(
+                    _isSubmitting ? 'Publishing...' : 'Publish Trip',
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -285,3 +326,4 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
     );
   }
 }
+

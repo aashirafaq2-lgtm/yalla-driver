@@ -1,10 +1,10 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 class ApiService {
   final Dio dio = Dio(
     BaseOptions(
-      baseUrl: kIsWeb ? 'http://76.13.3.121:4000/api' : 'http://76.13.3.121:4000/api',
+      baseUrl: 'http://76.13.3.121:4000/api',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       headers: {
@@ -30,25 +30,55 @@ class ApiService {
     return await dio.post('/auth/verify-otp', data: {'phone': phone, 'otp': otp});
   }
 
+  // Driver Registration
+  Future<Response> registerDriver(Map<String, dynamic> data, String token) async {
+    return await dio.post('/driver/register',
+      data: data,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
   // Driver Status
   Future<Response> updateStatus(bool isOnline, String token) async {
     return await dio.patch('/driver/status', 
       data: {'isOnline': isOnline},
-      options: Options(headers: {'Authorization': 'Bearer $token'})
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }
 
   // Earnings
-  Future<Response> getEarnings(String token) async {
+  Future<Response> getEarnings(String token, {String period = 'daily'}) async {
     return await dio.get('/driver/earnings', 
-      options: Options(headers: {'Authorization': 'Bearer $token'})
+      queryParameters: {'period': period},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }
 
   // Profile
   Future<Response> getProfile(String token) async {
     return await dio.get('/user/profile', 
-      options: Options(headers: {'Authorization': 'Bearer $token'})
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> updateProfile(Map<String, dynamic> data, String token) async {
+    return await dio.patch('/user/profile', 
+      data: data,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  // Wallet
+  Future<Response> getWallet(String token) async {
+    return await dio.get('/user/wallet', 
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  // History
+  Future<Response> getHistory(String token) async {
+    return await dio.get('/user/history', 
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }
 
@@ -56,21 +86,46 @@ class ApiService {
   Future<Response> acceptRide(String rideId, String token) async {
     return await dio.patch('/ride/accept', 
       data: {'rideId': rideId},
-      options: Options(headers: {'Authorization': 'Bearer $token'})
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }
 
-  Future<Response> updateRideStatus(String rideId, String status, String token) async {
+  Future<Response> updateRideStatus(String rideId, String status, String token, {double? finalPrice}) async {
     return await dio.patch('/ride/status', 
-      data: {'rideId': rideId, 'status': status},
-      options: Options(headers: {'Authorization': 'Bearer $token'})
+      data: {
+        'rideId': rideId,
+        'status': status,
+        if (finalPrice != null) 'finalPrice': finalPrice,
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
+  }
+
+  // Trips
+  Future<Response> getAvailableTrips({String? from, String? to, String? date}) async {
+    return await dio.get('/trips/available', queryParameters: {
+      if (from != null) 'from': from,
+      if (to != null) 'to': to,
+      if (date != null) 'date': date,
+    });
+  }
+
+  Future<Response> createScheduledTrip(Map<String, dynamic> tripData, String token) async {
+    return await dio.post('/trips/create', 
+      data: tripData,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> getGovernorates() async {
+    return await dio.get('/trips/governorates');
   }
 
   Future<Response> updateFcmToken(String fcmToken, String token) async {
     return await dio.patch('/user/fcm-token', 
       data: {'fcmToken': fcmToken},
-      options: Options(headers: {'Authorization': 'Bearer $token'})
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }
 }
+

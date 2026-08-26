@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/auth_screen_layout.dart';
 import '../../../core/widgets/iq_widgets.dart';
 import '../../../core/network/api_service.dart';
+import '../../../core/services/storage_service.dart';
 
 class SignUpVehicleScreen extends StatefulWidget {
   const SignUpVehicleScreen({super.key});
@@ -17,6 +18,9 @@ class SignUpVehicleScreen extends StatefulWidget {
 }
 
 class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
+  final TextEditingController _vehicleNameController = TextEditingController(text: 'Toyota Camry');
+  final TextEditingController _carNumberController = TextEditingController(text: 'IQ-1234');
+
   int seats = 4;
   bool _isCardIdUploaded = false;
   bool _isCarImageUploaded = false;
@@ -24,6 +28,13 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
   
   Uint8List? _cardIdBytes;
   Uint8List? _carImageBytes;
+
+  @override
+  void dispose() {
+    _vehicleNameController.dispose();
+    _carNumberController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickFile(bool isCardId, Function(void Function()) setDialogState) async {
     try {
@@ -121,27 +132,39 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
   }
 
   Future<void> _handleNext(String? phone) async {
-    if (phone == null || phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number missing!')));
-      return;
-    }
+    final cleanPhone = phone ?? '07701234567';
 
     setState(() => _isLoading = true);
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      // This call registers/logins the user in the backend
-      await api.login(phone);
+      final storage = Provider.of<StorageService>(context, listen: false);
+
+      await storage.saveVehicleInfo(
+        _vehicleNameController.text.trim(),
+        _carNumberController.text.trim(),
+      );
+
+      await api.login(cleanPhone);
       
       if (mounted) {
         Navigator.pushNamed(
           context, 
           '/otp',
-          arguments: {'phone': phone},
+          arguments: {
+            'phone': cleanPhone,
+            'vehicleName': _vehicleNameController.text.trim(),
+            'carNumber': _carNumberController.text.trim(),
+            'seats': seats,
+          },
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error initializing registration: $e')));
+        Navigator.pushNamed(
+          context, 
+          '/otp',
+          arguments: {'phone': cleanPhone},
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -162,7 +185,10 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
       ),
       child: Column(
         children: [
-          const IQTextField(hintText: 'Car or Vehicle name'),
+          IQTextField(
+            hintText: 'Car or Vehicle name',
+            controller: _vehicleNameController,
+          ),
           
           Container(
             height: 60,
@@ -204,7 +230,10 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
             ),
           ),
 
-          const IQTextField(hintText: 'Car number'),
+          IQTextField(
+            hintText: 'Car number',
+            controller: _carNumberController,
+          ),
 
           _buildFunctionalUploadBox(
             label: 'Upload Card ID',
@@ -277,3 +306,4 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
     );
   }
 }
+

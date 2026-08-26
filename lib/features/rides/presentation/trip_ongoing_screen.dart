@@ -1,9 +1,18 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/socket_service.dart';
+import '../../../core/network/api_service.dart';
+import '../../../core/services/storage_service.dart';
+import '../../../core/providers/auth_provider.dart';
+
+enum RideProgressStep { drivingToPickup, arrivedAtPickup, inProgress, completed }
 
 class TripOngoingScreen extends StatefulWidget {
-  final Map<String, String> tripData;
+  final Map<String, dynamic> tripData;
   const TripOngoingScreen({super.key, required this.tripData});
 
   @override
@@ -11,8 +20,90 @@ class TripOngoingScreen extends StatefulWidget {
 }
 
 class _TripOngoingScreenState extends State<TripOngoingScreen> {
+  final MapController _mapController = MapController();
+  RideProgressStep _step = RideProgressStep.drivingToPickup;
+
+  LatLng _driverPos = const LatLng(35.4681, 44.3922);
+  LatLng _pickupPos = const LatLng(35.4720, 44.3880);
+  LatLng _dropPos = const LatLng(35.4850, 44.4050);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _joinRideAndBroadcastLocation();
+    });
+  }
+
+  void _joinRideAndBroadcastLocation() {
+    final socket = Provider.of<SocketService>(context, listen: false);
+    final rideId = widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride';
+    socket.joinRide(rideId);
+    socket.updateLocation(_driverPos.latitude, _driverPos.longitude, activeRideId: rideId);
+  }
+
+  String get _stepButtonLabel {
+    switch (_step) {
+      case RideProgressStep.drivingToPickup:
+        return 'Arrived at Pickup';
+      case RideProgressStep.arrivedAtPickup:
+        return 'Confirm Pickup';
+      case RideProgressStep.inProgress:
+        return 'Finish Trip';
+      case RideProgressStep.completed:
+        return 'Trip Completed';
+    }
+  }
+
+  Future<void> _handleStepAction() async {
+    final socket = Provider.of<SocketService>(context, listen: false);
+    final api = Provider.of<ApiService>(context, listen: false);
+    final storage = Provider.of<StorageService>(context, listen: false);
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final token = await storage.getToken();
+
+    final rideId = widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride';
+
+    if (_step == RideProgressStep.drivingToPickup) {
+      setState(() => _step = RideProgressStep.arrivedAtPickup);
+      socket.changeStatus(rideId: rideId, status: 'ARRIVED');
+      if (token != null) api.updateRideStatus(rideId, 'ARRIVED', token);
+    } else if (_step == RideProgressStep.arrivedAtPickup) {
+      setState(() => _step = RideProgressStep.inProgress);
+      socket.changeStatus(rideId: rideId, status: 'PICKED_UP');
+      if (token != null) api.updateRideStatus(rideId, 'PICKED_UP', token);
+    } else if (_step == RideProgressStep.inProgress) {
+      setState(() => _step = RideProgressStep.completed);
+      
+      final priceStr = widget.tripData['price']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '10000';
+      final finalPrice = double.tryParse(priceStr) ?? 10000.0;
+
+      socket.changeStatus(
+        rideId: rideId,
+        status: 'COMPLETED',
+        payload: {'finalPrice': finalPrice},
+      );
+
+      if (token != null) {
+        await api.updateRideStatus(rideId, 'COMPLETED', token, finalPrice: finalPrice);
+      }
+
+      await auth.loadProfile();
+
+      if (mounted) {
+        _showCompletionDialog(context, finalPrice);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final name = widget.tripData['name'] ?? 'Passenger';
+    final from = widget.tripData['from'] ?? 'Kirkuk';
+    final to = widget.tripData['to'] ?? 'Baghdad';
+    final phone = widget.tripData['phone'] ?? '07xx xxx xxxx';
+    final price = widget.tripData['price'] ?? '25,000 IQD';
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -28,47 +119,73 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
           children: [
             const Text(
               'Yalla ',
-              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 32),
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 28),
             ),
             Text(
               'يَلَّا',
-              style: TextStyle(color: AppColors.primaryOrange.withOpacity(0.8), fontWeight: FontWeight.bold, fontSize: 32),
+              style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 28),
             ),
           ],
         ),
       ),
       body: Stack(
         children: [
-          // ── Background Map (Mock Live) ──────────────────────────────
-          Positioned.fill(
-            child: Container(
-              color: const Color(0xFFF1F1F1),
-              child: Stack(
-                children: [
-                  // Mock Map Background
-                  Image.network(
-                    'https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=1500', // Map-like aerial view
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                    color: Colors.white.withOpacity(0.6),
-                    colorBlendMode: BlendMode.lighten,
-                  ),
-                  // Mock Route Line
-                  CustomPaint(
-                    size: Size.infinite,
-                    painter: RoutePainter(),
-                  ),
-                  // Car Marker (Mock Live)
-                  const Center(
-                    child: PulseMarker(),
+          // ── Real Live OpenStreetMap ─────────────────────────────────
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _driverPos,
+              initialZoom: 14.5,
+              interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.yalla.driver',
+              ),
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: [_driverPos, _pickupPos, _dropPos],
+                    color: AppColors.primaryOrange,
+                    strokeWidth: 4,
                   ),
                 ],
               ),
-            ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _pickupPos,
+                    width: 36,
+                    height: 36,
+                    child: _buildPin(Icons.trip_origin, Colors.green),
+                  ),
+                  Marker(
+                    point: _driverPos,
+                    width: 50,
+                    height: 50,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryOrange,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3))],
+                      ),
+                      child: const Icon(Icons.directions_car, color: Colors.white, size: 24),
+                    ),
+                  ),
+                  Marker(
+                    point: _dropPos,
+                    width: 36,
+                    height: 36,
+                    child: _buildPin(Icons.location_on, Colors.red),
+                  ),
+                ],
+              ),
+            ],
           ),
-          
-          // ── Trip Details Overlay ──────────────────────────────
+
+          // ── Trip Details Overlay Card ─────────────────────────────────
           Align(
             alignment: Alignment.bottomCenter,
             child: FadeInUp(
@@ -78,48 +195,47 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                   color: Colors.white,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, -5)),
+                    BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20, offset: const Offset(0, -5)),
                   ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Handle for aesthetic
                     Container(
                       width: 40,
                       height: 4,
-                      margin: const EdgeInsets.only(bottom: 20),
+                      margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
                     ),
                     Row(
                       children: [
                         Container(
-                          width: 70,
-                          height: 70,
+                          width: 60,
+                          height: 60,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.grey.withOpacity(0.1),
+                            color: AppColors.primaryOrange.withOpacity(0.1),
                           ),
-                          child: const Icon(Icons.person, size: 45, color: AppColors.primaryOrange),
+                          child: const Icon(Icons.person, size: 36, color: AppColors.primaryOrange),
                         ),
-                        const SizedBox(width: 15),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.tripData['name']!,
-                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                name,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                               ),
                               Row(
                                 children: [
                                   const Icon(Icons.star, color: Colors.amber, size: 16),
                                   const SizedBox(width: 4),
-                                  const Text('4.9', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                  const Text('5.0', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                                   const SizedBox(width: 10),
                                   Text(
-                                    widget.tripData['time']!,
-                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                    price,
+                                    style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 13),
                                   ),
                                 ],
                               ),
@@ -132,46 +248,57 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: IconButton(
-                            icon: const Icon(Icons.phone, color: Colors.green, size: 28),
-                            onPressed: () {},
+                            icon: const Icon(Icons.phone, color: Colors.green, size: 24),
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Calling passenger at $phone...')),
+                              );
+                            },
                           ),
                         ),
                       ],
                     ),
-                    const Divider(height: 35),
-                    _buildInfoRow(Icons.location_on, 'Pickup', widget.tripData['from']!),
-                    const SizedBox(height: 12),
-                    _buildInfoRow(Icons.flag, 'Drop-off', widget.tripData['to']!),
-                    const SizedBox(height: 25),
+                    const Divider(height: 28),
+                    _buildInfoRow(Icons.trip_origin, 'Pickup', from, Colors.green),
+                    const SizedBox(height: 10),
+                    _buildInfoRow(Icons.location_on, 'Drop-off', to, Colors.red),
+                    const SizedBox(height: 20),
                     Row(
                       children: [
                         Expanded(
-                          child: Container(
-                            height: 60,
+                          child: SizedBox(
+                            height: 54,
                             child: ElevatedButton(
-                              onPressed: () {
-                                _showCompletionDialog(context);
-                              },
+                              onPressed: _step == RideProgressStep.completed ? null : _handleStepAction,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primaryOrange,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                backgroundColor: _step == RideProgressStep.inProgress ? Colors.green : AppColors.primaryOrange,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                elevation: 3,
                               ),
-                              child: const Text(
-                                'Finish Trip',
-                                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                              child: Text(
+                                _stepButtonLabel,
+                                style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 15),
+                        const SizedBox(width: 12),
                         Container(
-                          width: 60,
-                          height: 60,
+                          width: 54,
+                          height: 54,
                           decoration: BoxDecoration(
                             color: Colors.black87,
-                            borderRadius: BorderRadius.circular(15),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          child: const Icon(Icons.navigation, color: Colors.white, size: 30),
+                          child: IconButton(
+                            icon: const Icon(Icons.navigation, color: Colors.white, size: 26),
+                            onPressed: () {
+                              _mapController.move(_driverPos, 15.0);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Centered on navigation route'), duration: Duration(seconds: 1)),
+                              );
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -185,51 +312,61 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildPin(IconData icon, Color color) {
+    return Container(
+      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]),
+      child: Icon(icon, color: color, size: 22),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value, Color color) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.primaryOrange, size: 22),
-        const SizedBox(width: 15),
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-            Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           ],
         ),
       ],
     );
   }
 
-  void _showCompletionDialog(BuildContext context) {
+  void _showCompletionDialog(BuildContext context, double amount) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Center(child: Text('Trip Completed!')),
+        title: const Center(child: Text('Trip Completed! 🎉', style: TextStyle(fontWeight: FontWeight.bold))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 80),
-            const SizedBox(height: 20),
+            const Icon(Icons.check_circle, color: Colors.green, size: 70),
+            const SizedBox(height: 16),
             const Text('You have successfully finished the trip.', textAlign: TextAlign.center),
-            const SizedBox(height: 15),
-            Text('Amount: 25,000 IQD', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
+            const SizedBox(height: 12),
+            Text('${amount.toStringAsFixed(0)} IQD', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.primaryOrange)),
+            const SizedBox(height: 4),
+            const Text('Credited to your driver wallet', style: TextStyle(color: Colors.black45, fontSize: 12)),
           ],
         ),
         actions: [
           Center(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 8),
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.of(context).pop(); // dialog
-                  Navigator.of(context).pop(); // ongoing screen
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).pop();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryOrange,
                   minimumSize: const Size(180, 48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text('Back to Home', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
@@ -241,79 +378,3 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
   }
 }
 
-class PulseMarker extends StatefulWidget {
-  const PulseMarker({super.key});
-
-  @override
-  State<PulseMarker> createState() => _PulseMarkerState();
-}
-
-class _PulseMarkerState extends State<PulseMarker> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 100 * _controller.value,
-              height: 100 * _controller.value,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primaryOrange.withOpacity(1 - _controller.value),
-              ),
-            ),
-            Container(
-              width: 25,
-              height: 25,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primaryOrange,
-                border: Border.all(color: Colors.white, width: 3),
-                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
-              ),
-              child: const Icon(Icons.directions_car, color: Colors.white, size: 14),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class RoutePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.primaryOrange.withOpacity(0.4)
-      ..strokeWidth = 6
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path()
-      ..moveTo(size.width * 0.2, size.height * 0.8)
-      ..quadraticBezierTo(size.width * 0.5, size.height * 0.7, size.width * 0.5, size.height * 0.5)
-      ..lineTo(size.width * 0.8, size.height * 0.2);
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

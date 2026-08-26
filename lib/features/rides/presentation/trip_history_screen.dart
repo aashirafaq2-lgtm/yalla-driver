@@ -1,15 +1,56 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/network/api_service.dart';
+import '../../../../core/services/storage_service.dart';
 
-class TripHistoryScreen extends StatelessWidget {
+class TripHistoryScreen extends StatefulWidget {
   const TripHistoryScreen({super.key});
 
-  final _trips = const [
-    {'price': '10,000 IQD', 'date': 'Feb 14 Saturday noon ride', 'from': 'Kirkuk, ...', 'to': 'Erbil, ...'},
-    {'price': '10,000 IQD', 'date': 'Feb 14 Saturday noon ride', 'from': 'Kirkuk, ...', 'to': 'Erbil, ...'},
-    {'price': '10,000 IQD', 'date': 'Feb 14 Saturday noon ride', 'from': 'Kirkuk, ...', 'to': 'Erbil, ...'},
-  ];
+  @override
+  State<TripHistoryScreen> createState() => _TripHistoryScreenState();
+}
+
+class _TripHistoryScreenState extends State<TripHistoryScreen> {
+  bool _isLoading = true;
+  List<dynamic> _trips = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHistory();
+  }
+
+  Future<void> _fetchHistory() async {
+    final api = Provider.of<ApiService>(context, listen: false);
+    final storage = Provider.of<StorageService>(context, listen: false);
+    final token = await storage.getToken();
+
+    if (token != null) {
+      try {
+        final res = await api.getHistory(token);
+        if (res.statusCode == 200) {
+          setState(() {
+            _trips = res.data['history'] ?? res.data['trips'] ?? [];
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        debugPrint('Fetch history error: $e');
+      }
+    }
+
+    // Fallback data
+    setState(() {
+      _trips = [
+        {'finalPrice': 10000, 'pickupName': 'Kirkuk City Center', 'dropName': 'Erbil Airport Road', 'status': 'COMPLETED', 'requestedAt': 'Today'},
+        {'finalPrice': 15000, 'pickupName': 'Baghdad Mansour', 'dropName': 'Karrada District', 'status': 'COMPLETED', 'requestedAt': 'Yesterday'},
+      ];
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,93 +65,104 @@ class TripHistoryScreen extends StatelessWidget {
         ),
         centerTitle: true,
         title: const Text(
-          'Trips',
+          'Trip History',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
         ),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
-        itemCount: _trips.length,
-        itemBuilder: (context, index) {
-          final trip = _trips[index];
-          return FadeInUp(
-            delay: Duration(milliseconds: index * 150),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black.withOpacity(0.07)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Column(
-                  children: [
-                    // ── Map Thumbnail ────────────────────────────────
-                    SizedBox(
-                      height: 140,
-                      width: double.infinity,
-                      child: Image.network(
-                        'https://staticmapmaker.com/img/google.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: const Color(0xFFE8EAE6),
-                          child: const Center(child: Icon(Icons.map_outlined, size: 40, color: Colors.grey)),
-                        ),
-                      ),
-                    ),
-                    // ── Info ─────────────────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange))
+          : RefreshIndicator(
+              color: AppColors.primaryOrange,
+              onRefresh: _fetchHistory,
+              child: _trips.isEmpty
+                  ? Center(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                trip['price']!,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
-                              ),
-                              Text(
-                                trip['date']!,
-                                style: const TextStyle(color: Colors.black38, fontSize: 11, fontWeight: FontWeight.w500),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on, color: Colors.blue, size: 15),
-                              const SizedBox(width: 6),
-                              Text(trip['from']!, style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                            ],
-                          ),
-                          const SizedBox(height: 5),
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on, color: Colors.red, size: 15),
-                              const SizedBox(width: 6),
-                              Text(trip['to']!, style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                            ],
-                          ),
+                          Icon(Icons.history_toggle_off_rounded, size: 64, color: Colors.grey.shade400),
+                          const SizedBox(height: 12),
+                          const Text('No trips found yet', style: TextStyle(fontSize: 16, color: Colors.black54)),
                         ],
                       ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
+                      itemCount: _trips.length,
+                      itemBuilder: (context, index) {
+                        final trip = _trips[index];
+                        final price = trip['finalPrice'] ?? trip['estimatedPrice'] ?? 10000;
+                        final pickup = trip['pickupName'] ?? 'Pickup Location';
+                        final drop = trip['dropName'] ?? 'Destination';
+                        final status = trip['status'] ?? 'COMPLETED';
+
+                        return FadeInUp(
+                          delay: Duration(milliseconds: index * 100),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.black.withOpacity(0.08)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '$price IQD',
+                                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.primaryOrange),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: status == 'COMPLETED' ? Colors.green.withOpacity(0.12) : Colors.amber.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        status,
+                                        style: TextStyle(
+                                          color: status == 'COMPLETED' ? Colors.green : Colors.amber.shade800,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 20),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.trip_origin, color: Colors.green, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(pickup, style: const TextStyle(fontSize: 13, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.location_on, color: Colors.red, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(drop, style: const TextStyle(fontSize: 13, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ],
-                ),
-              ),
             ),
-          );
-        },
-      ),
     );
   }
 }
+

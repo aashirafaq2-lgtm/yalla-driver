@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -65,8 +65,12 @@ void main() async {
 
   final apiService = ApiService();
   final storageService = StorageService();
-  final authProvider = AuthProvider(apiService, storageService);
   final socketService = SocketService(storageService);
+  final authProvider = AuthProvider(apiService, storageService);
+  authProvider.setSocketService(socketService);
+
+  // Initialize socket connection
+  socketService.connect();
 
   runApp(
     MultiProvider(
@@ -80,6 +84,7 @@ void main() async {
       child: const YallaDriverApp(),
     ),
   );
+
 }
 
 class YallaDriverApp extends StatelessWidget {

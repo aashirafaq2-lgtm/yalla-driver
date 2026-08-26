@@ -1,49 +1,60 @@
 workflows:
-  build-release:
-    name: Yalla Driver iOS Release (App Store)
+  ios-release:
+    name: Yalla Driver - iOS App Store
     max_build_duration: 60
     instance_type: mac_mini_m2
+
     integrations:
-      app_store_connect: Yalla Passenger
+      app_store_connect: Yalla ASC Key   # Codemagic > Teams > Integrations me yeh naam se App Store Connect API key add karo
+
     environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.hamakhorshed.yallaDriver
       flutter: stable
       xcode: latest
       cocoapods: default
+
     scripts:
-      - name: Organize Flutter structure
+      - name: Set Flutter version
+        script: flutter --version
+
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Install CocoaPods dependencies
         script: |
-          mkdir -p assets/images
-          mkdir -p lib
-          if [ -f "main.dart" ]; then
-            cp main.dart lib/main.dart
-          fi
-          flutter create . --platforms=ios --org com.hamakhorshed --project-name yalla_driver --no-pub
-      - name: Set up dependencies
-        script: |
-          flutter packages pub get
-      - name: Setup Custom Keychain and Profiles
+          cd ios
+          pod install
+        working_directory: .
+
+      - name: Set up automatic code signing
         script: |
           keychain initialize
-          PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
-          mkdir -p "$PROFILES_HOME"
-          cp YallaDriver_AppStore.mobileprovision "$PROFILES_HOME/"
-          keychain add-certificates --certificate ios_distribution.p12 --certificate-password 12345
-      - name: Build iOS App (No Codesign)
-        script: |
-          flutter packages pub get
-          flutter build ios --release --no-codesign
-
-      - name: Build and Sign IPA
-        script: |
+          app-store-connect fetch-signing-files com.hamakhorshed.yallaDriver \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
           xcode-project use-profiles
-          xcode-project build-ipa \
-            --workspace "ios/Runner.xcworkspace" \
-            --scheme "Runner" \
-            --config "Release"
+
+      - name: Build Flutter IPA for App Store
+        script: |
+          flutter build ipa \
+            --release \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
     publishing:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-    artifacts:
-      - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild.log
+        submit_to_app_store: false
+      email:
+        recipients:
+          - ahmed@yalla.iq          # apna email daalo
+        notify:
+          success: true
+          failure: true
