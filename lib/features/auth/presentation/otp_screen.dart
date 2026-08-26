@@ -25,13 +25,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        for (int i = 0; i < 4; i++) {
-          _controllers[i].text = (i + 1).toString();
-        }
-        _verifyOtp();
-      }
+    // Focus on first OTP field after screen loads
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) _focusNodes[0].requestFocus();
     });
   }
 

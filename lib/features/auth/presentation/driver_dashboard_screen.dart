@@ -128,6 +128,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     final storage = Provider.of<StorageService>(context, listen: false);
     final socket  = Provider.of<SocketService>(context, listen: false);
     final token   = await storage.getToken();
+    final driverName = await storage.getDriverName() ?? 'Driver';
+    final carModel   = await storage.getCarModel() ?? 'Car';
+    final plate      = await storage.getLicensePlate() ?? '---';
 
     try {
       final response = await api.acceptRide(data['id'], token!);
@@ -136,9 +139,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
         socket.socket?.emit('accept_ride', {
           'rideId': acceptedRide['id'],
           'passengerId': acceptedRide['passengerId'],
-          'driverName': 'Ahmed Hassan',
-          'carModel': 'White Toyota Camry',
-          'plate': 'ABC-123'
+          'driverName': driverName,
+          'carModel': carModel,
+          'plate': plate,
         });
 
         Navigator.pop(context);

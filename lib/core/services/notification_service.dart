@@ -1,4 +1,4 @@
-﻿import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -10,8 +10,16 @@ class NotificationService {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('launcher_icon');
 
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
     );
 
     await _notificationsPlugin.initialize(
