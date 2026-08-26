@@ -10,8 +10,9 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.hamakhorshed.yallaDriver
+        bundle_identifier: com.alsamarie.yallaDriver
       flutter: stable
+
       xcode: latest
       cocoapods: default
 
@@ -31,11 +32,12 @@ workflows:
       - name: Set up automatic code signing
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files com.hamakhorshed.yallaDriver \
+          app-store-connect fetch-signing-files com.alsamarie.yallaDriver \
             --type IOS_APP_STORE \
             --create
           keychain add-certificates
           xcode-project use-profiles
+
 
       - name: Build Flutter IPA for App Store
         script: |
