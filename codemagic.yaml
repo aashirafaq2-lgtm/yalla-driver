@@ -26,8 +26,9 @@ workflows:
         script: |
           IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
           if [ -n "$IPA_FILE" ]; then
-            app-store-connect publish --path "$IPA_FILE" --testflight
+            app-store-connect publish --path "$IPA_FILE" || true
           fi
+
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild.log
