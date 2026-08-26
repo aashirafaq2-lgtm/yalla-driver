@@ -27,8 +27,15 @@ workflows:
       - name: Build and Sign IPA
         script: |
           xcode-project use-profiles
-          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
-
+          xcode-project build-ipa \
+            --workspace "ios/Runner.xcworkspace" \
+            --scheme "Runner" \
+            --config "Release"
+      - name: Upload to App Store Connect
+        script: |
+          app-store-connect publish \
+            --path $(find /Users/builder -name "*.ipa" | head -n 1) \
+            --testflight
     publishing:
       app_store_connect:
         auth: integration
@@ -36,3 +43,5 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild.log
+
+
