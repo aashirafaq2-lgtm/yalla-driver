@@ -10,9 +10,6 @@ workflows:
       xcode: latest
       cocoapods: default
     scripts:
-      - name: Set up dependencies
-        script: |
-          flutter packages pub get
       - name: Setup Custom Keychain and Profiles
         script: |
           keychain initialize
@@ -20,22 +17,17 @@ workflows:
           mkdir -p "$PROFILES_HOME"
           cp Yalla_Driver_AppStore.mobileprovision "$PROFILES_HOME/"
           keychain add-certificates --certificate ios_distribution.p12 --certificate-password 12345
-      - name: Build iOS App (No Codesign)
+          xcode-project use-profiles
+      - name: Build Flutter IPA
         script: |
           flutter packages pub get
-          flutter build ios --release --no-codesign
-      - name: Build and Sign IPA
+          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+      - name: Upload to TestFlight
         script: |
-          xcode-project use-profiles
-          xcode-project build-ipa \
-            --workspace "ios/Runner.xcworkspace" \
-            --scheme "Runner" \
-            --config "Release"
-      - name: Upload to App Store Connect
-        script: |
-          app-store-connect publish \
-            --path $(find /Users/builder -name "*.ipa" | head -n 1) \
-            --testflight
+          IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
+          if [ -n "$IPA_FILE" ]; then
+            app-store-connect publish --path "$IPA_FILE" --testflight
+          fi
     publishing:
       app_store_connect:
         auth: integration
@@ -43,5 +35,3 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild.log
-
-
