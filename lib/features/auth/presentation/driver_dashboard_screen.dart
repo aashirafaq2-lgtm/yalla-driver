@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -133,13 +133,14 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       final response = await api.acceptRide(data['id'], token!);
       if (response.statusCode == 200) {
         final acceptedRide = response.data['ride'];
-        socket.socket.emit('accept_ride', {
+        socket.socket?.emit('accept_ride', {
           'rideId': acceptedRide['id'],
           'passengerId': acceptedRide['passengerId'],
           'driverName': 'Ahmed Hassan',
           'carModel': 'White Toyota Camry',
           'plate': 'ABC-123'
         });
+
         Navigator.pop(context);
         Navigator.push(context, MaterialPageRoute(
           builder: (_) => ActiveRideScreen(rideData: acceptedRide),

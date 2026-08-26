@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
@@ -33,9 +33,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
       if (!mounted) return false;
       await Future.delayed(const Duration(seconds: 5));
       final socket = Provider.of<SocketService>(context, listen: false);
-      socket.updateLocation(_currentLocation.latitude, _currentLocation.longitude, rideId: widget.rideData['id']);
+      socket.updateLocation(_currentLocation.latitude, _currentLocation.longitude, activeRideId: widget.rideData['id']);
       // Also notify passenger side status
-      socket.socket.emit('driver_moved', {
+      socket.socket?.emit('driver_moved', {
         'rideId': widget.rideData['id'],
         'lat': _currentLocation.latitude,
         'lng': _currentLocation.longitude,
@@ -58,12 +58,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
         setState(() => _status = newStatus);
         
         // Notify passenger via socket
-        socket.socket.emit('driver_moved', {
+        socket.socket?.emit('driver_moved', {
           'rideId': widget.rideData['id'],
           'lat': _currentLocation.latitude,
           'lng': _currentLocation.longitude,
           'status': newStatus == 'ONGOING' ? 'Ride Started' : 'Ride Completed'
         });
+
 
         if (newStatus == 'COMPLETED') {
           if (mounted) Navigator.pop(context);
