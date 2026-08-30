@@ -310,8 +310,9 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.yalla.driver',
-                maxZoom: 18,
+                maxZoom: 19,
               ),
+
               MarkerLayer(
                 markers: [
                   Marker(

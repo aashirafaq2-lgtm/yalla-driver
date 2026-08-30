@@ -11,7 +11,7 @@
 
 
     <application
-        android:label="iq_massar_driver"
+        android:label="Yalla Driver"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

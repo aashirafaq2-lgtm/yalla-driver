@@ -27,7 +27,7 @@ class SocketService {
     final userId = await _storageService.getUserId();
 
     _socket = IO.io(
-      'http://76.13.3.121:4000',
+      'http://72.62.50.86',
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token ?? ''})
