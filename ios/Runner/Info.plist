@@ -28,17 +28,15 @@
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs access to camera for uploading profile and vehicle pictures.</string>
+	<string>Yalla Driver requires camera access to allow drivers to take and upload profile photos and vehicle/document verification pictures.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to photos for uploading documents.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs access to microphone when recording videos.</string>
+	<string>Yalla Driver requires photo library access to upload driver licenses, vehicle registration, and identity documents.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app requires access to your location to provide accurate trip routing.</string>
+	<string>Yalla Driver uses your current location to show nearby ride requests and provide turn-by-turn navigation during active trips.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app requires access to your location to provide accurate trip routing.</string>
+	<string>Yalla Driver requires continuous background location to receive nearby ride requests and track your vehicle position for passengers during active trips even when the app is minimized.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Yalla Driver needs your location at all times to receive ride requests and broadcast your position to passengers.</string>
+	<string>Yalla Driver requires continuous background location access to receive nearby ride requests and transmit real-time vehicle positioning to passengers during active trips when navigating with other apps or when the screen is locked.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

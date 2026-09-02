@@ -68,6 +68,12 @@ class ApiService {
     );
   }
 
+  Future<Response> deleteAccount(String token) async {
+    return await dio.delete('/user/profile',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
   // Wallet
   Future<Response> getWallet(String token) async {
     return await dio.get('/user/wallet', 

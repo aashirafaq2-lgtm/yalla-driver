@@ -150,5 +150,39 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     return false;
   }
+
+  Future<bool> deleteAccount() async {
+    final token = await _storageService.getToken();
+    if (token == null) return false;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await _apiService.deleteAccount(token);
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        await _storageService.clear();
+        _userProfile = null;
+        _socketService?.disconnect();
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Delete Account Error: $e');
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  Future<void> logout() async {
+    await _storageService.clear();
+    _userProfile = null;
+    _socketService?.disconnect();
+    notifyListeners();
+  }
 }
+
 

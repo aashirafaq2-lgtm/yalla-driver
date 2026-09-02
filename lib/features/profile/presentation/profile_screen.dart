@@ -118,6 +118,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildMenuItem(context, Icons.language, 'Language', '/language', 300),
               _buildMenuItem(context, Icons.inventory_2_outlined, 'Mail & Parcel', '/mail_parcels', 400),
               _buildMenuItem(context, Icons.support_agent_outlined, 'Support & Help', '/support', 500),
+              _buildActionItem(
+                context, 
+                Icons.privacy_tip_outlined, 
+                'Privacy Policy', 
+                Colors.black87, 
+                () => _showPrivacyPolicyDialog(context),
+                600,
+              ),
+              _buildActionItem(
+                context, 
+                Icons.logout, 
+                'Log Out', 
+                Colors.black87, 
+                () => _showLogoutDialog(context, auth),
+                700,
+              ),
+              _buildActionItem(
+                context, 
+                Icons.delete_forever_outlined, 
+                'Delete Account', 
+                Colors.red.shade700, 
+                () => _showDeleteAccountDialog(context, auth),
+                800,
+              ),
 
               const SizedBox(height: 40),
             ],
@@ -159,5 +183,161 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-}
 
+  Widget _buildActionItem(BuildContext context, IconData icon, String title, Color color, VoidCallback onTap, int delayMs) {
+    return FadeInUp(
+      delay: Duration(milliseconds: delayMs),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color == Colors.black87 ? Colors.black.withOpacity(0.08) : Colors.red.withOpacity(0.2)),
+        ),
+        child: ListTile(
+          onTap: onTap,
+          leading: Icon(icon, color: color, size: 22),
+          title: Text(
+            title, 
+            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15, color: color),
+          ),
+          trailing: Icon(Icons.chevron_right, color: color.withOpacity(0.6)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        ),
+      ),
+    );
+  }
+
+  void _showPrivacyPolicyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.privacy_tip, color: AppColors.primaryOrange),
+            SizedBox(width: 8),
+            Text('Privacy Policy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Yalla Driver respects your privacy and is committed to protecting your personal data.\n\n'
+            '1. Location Data: We collect precise location data in foreground and background to connect you with nearby passengers and provide navigation during trips.\n\n'
+            '2. Profile Information: We collect your name, phone number, vehicle details, and documents for driver verification.\n\n'
+            '3. Data Deletion: You can permanently delete your account and all associated data at any time from this screen.',
+            style: TextStyle(fontSize: 14, color: Colors.black87, height: 1.4),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context, AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to log out of your driver account?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              await auth.logout();
+              if (context.mounted) {
+                Navigator.pushNamedAndRemoveUntil(context, '/welcome', (route) => false);
+              }
+            },
+            child: const Text('Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context, AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 8),
+            Text('Delete Account', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to permanently delete your account?\n\n'
+          '• Your profile, documents, and vehicle details will be permanently removed.\n'
+          '• Your trip history and wallet data will be deleted.\n'
+          '• This action is permanent and cannot be undone.',
+          style: TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              Navigator.pop(context); // Dismiss confirmation dialog
+              
+              // Show loading dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => const Center(
+                  child: CircularProgressIndicator(color: Colors.red),
+                ),
+              );
+
+              final success = await auth.deleteAccount();
+              
+              if (context.mounted) {
+                Navigator.pop(context); // Dismiss loading dialog
+
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Your account has been deleted successfully.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  Navigator.pushNamedAndRemoveUntil(context, '/welcome', (route) => false);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to delete account. Please try again or contact support.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete Permanently', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+}

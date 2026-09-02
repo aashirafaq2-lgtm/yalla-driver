@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class SupportScreen extends StatelessWidget {
@@ -116,7 +116,7 @@ class SupportScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Email Support'),
-        content: const Text('Opening your email app to send a message to support@yalla.app'),
+        content: const Text('Opening your email app to send a message to support@yallataxi.com'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
