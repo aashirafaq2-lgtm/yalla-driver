@@ -26,11 +26,12 @@ workflows:
         script: |
           IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
           if [ -n "$IPA_FILE" ]; then
-            app-store-connect publish --path "$IPA_FILE" || true
+            app-store-connect publish --path "$IPA_FILE" --apple-id 6805273240 --testflight || true
           fi
     publishing:
       app_store_connect:
         auth: integration
+        apple_id: 6805273240
         submit_to_testflight: true
     artifacts:
       - build/ios/ipa/*.ipa
