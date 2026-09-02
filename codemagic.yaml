@@ -9,26 +9,30 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.hamakhorshed.yallaDriver
     scripts:
-      - name: Setup Custom Keychain and Profiles
-        script: |
-          keychain initialize
-          PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
-          mkdir -p "$PROFILES_HOME"
-          cp Yalla_Driver_AppStore.mobileprovision "$PROFILES_HOME/"
-          keychain add-certificates --certificate ios_distribution.p12 --certificate-password 12345
-          xcode-project use-profiles
-      - name: Build Flutter IPA
+      - name: Get Flutter packages
         script: |
           flutter packages pub get
-          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+      - name: Install CocoaPods
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+      - name: Build Flutter IPA
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=$CM_EXPORT_OPTIONS_PATH
       - name: Upload to TestFlight
         script: |
           IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
           if [ -n "$IPA_FILE" ]; then
             app-store-connect publish --path "$IPA_FILE" || true
           fi
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild.log
-
