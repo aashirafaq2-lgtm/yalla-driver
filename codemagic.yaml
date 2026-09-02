@@ -21,18 +21,35 @@ workflows:
           find . -name "Podfile" -execdir pod install \;
       - name: Build Flutter IPA
         script: |
-          flutter build ipa --release \
-            --export-options-plist=$CM_EXPORT_OPTIONS_PATH
+          # Create ExportOptions.plist manually
+          cat > /tmp/ExportOptions.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>585FVS6NFQ</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.hamakhorshed.yallaDriver</key>
+              <string>Yalla - Driver</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+          flutter build ipa --release --export-options-plist=/tmp/ExportOptions.plist
       - name: Upload to TestFlight
         script: |
           IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
           if [ -n "$IPA_FILE" ]; then
             app-store-connect publish --path "$IPA_FILE" || true
           fi
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild.log
