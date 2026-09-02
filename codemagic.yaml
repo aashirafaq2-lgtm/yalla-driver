@@ -3,6 +3,8 @@ workflows:
     name: Yalla Driver iOS Release (App Store)
     max_build_duration: 60
     instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: Yalla Passenger
     environment:
       flutter: stable
       xcode: latest
@@ -26,7 +28,11 @@ workflows:
           if [ -n "$IPA_FILE" ]; then
             app-store-connect publish --path "$IPA_FILE" || true
           fi
-
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild.log
+
