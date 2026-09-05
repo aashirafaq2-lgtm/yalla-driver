@@ -39,7 +39,6 @@
 	<string>Yalla Driver requires continuous background location access to receive nearby ride requests and transmit real-time vehicle positioning to passengers during active trips when navigating with other apps or when the screen is locked.</string>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>

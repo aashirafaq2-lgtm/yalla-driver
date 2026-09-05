@@ -109,7 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
 
               // ── Menu Items ────────────────────────────────────────────
               _buildMenuItem(context, Icons.credit_card_outlined, 'Payment method', '/payment', 0),
@@ -118,14 +118,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildMenuItem(context, Icons.language, 'Language', '/language', 300),
               _buildMenuItem(context, Icons.inventory_2_outlined, 'Mail & Parcel', '/mail_parcels', 400),
               _buildMenuItem(context, Icons.support_agent_outlined, 'Support & Help', '/support', 500),
-              _buildActionItem(
-                context, 
-                Icons.privacy_tip_outlined, 
-                'Privacy Policy', 
-                Colors.black87, 
-                () => _showPrivacyPolicyDialog(context),
-                600,
+              _buildMenuItem(context, Icons.privacy_tip_outlined, 'Privacy Policy', null, 600, customTap: () => _showPrivacyPolicyDialog(context)),
+
+              const SizedBox(height: 24),
+              // ── Account Management Header ──
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 10),
+                  child: Text(
+                    'ACCOUNT MANAGEMENT',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade600,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
               ),
+
               _buildActionItem(
                 context, 
                 Icons.logout, 
@@ -136,11 +148,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               _buildActionItem(
                 context, 
-                Icons.delete_forever_outlined, 
+                Icons.delete_forever_rounded, 
                 'Delete Account', 
                 Colors.red.shade700, 
                 () => _showDeleteAccountDialog(context, auth),
                 800,
+                isDelete: true,
               ),
 
               const SizedBox(height: 40),
@@ -163,7 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildMenuItem(BuildContext context, IconData icon, String title, String? route, int delayMs) {
+  Widget _buildMenuItem(BuildContext context, IconData icon, String title, String? route, int delayMs, {VoidCallback? customTap}) {
     return FadeInUp(
       delay: Duration(milliseconds: delayMs),
       child: Container(
@@ -174,7 +187,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           border: Border.all(color: Colors.black.withOpacity(0.08)),
         ),
         child: ListTile(
-          onTap: route != null ? () => Navigator.pushNamed(context, route) : null,
+          onTap: customTap ?? (route != null ? () => Navigator.pushNamed(context, route) : null),
           leading: Icon(icon, color: Colors.black87, size: 22),
           title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15, color: Colors.black)),
           trailing: const Icon(Icons.chevron_right, color: Colors.black45),
@@ -184,25 +197,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildActionItem(BuildContext context, IconData icon, String title, Color color, VoidCallback onTap, int delayMs) {
+  Widget _buildActionItem(
+    BuildContext context, 
+    IconData icon, 
+    String title, 
+    Color color, 
+    VoidCallback onTap, 
+    int delayMs, 
+    {bool isDelete = false}
+  ) {
     return FadeInUp(
       delay: Duration(milliseconds: delayMs),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDelete ? const Color(0xFFFFF5F5) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color == Colors.black87 ? Colors.black.withOpacity(0.08) : Colors.red.withOpacity(0.2)),
+          border: Border.all(
+            color: isDelete ? Colors.red.withOpacity(0.35) : Colors.black.withOpacity(0.08),
+            width: isDelete ? 1.5 : 1.0,
+          ),
         ),
         child: ListTile(
           onTap: onTap,
-          leading: Icon(icon, color: color, size: 22),
+          leading: Icon(icon, color: color, size: 24),
           title: Text(
             title, 
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15, color: color),
+            style: TextStyle(
+              fontWeight: isDelete ? FontWeight.bold : FontWeight.w500, 
+              fontSize: 15, 
+              color: color,
+            ),
           ),
-          trailing: Icon(Icons.chevron_right, color: color.withOpacity(0.6)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          subtitle: isDelete 
+              ? Text('Permanently delete account and all data', style: TextStyle(color: Colors.red.shade400, fontSize: 12))
+              : null,
+          trailing: Icon(Icons.chevron_right, color: color.withOpacity(0.8)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         ),
       ),
     );
