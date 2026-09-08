@@ -11,16 +11,13 @@ import 'features/auth/presentation/signup_personal_screen.dart';
 import 'features/auth/presentation/signup_vehicle_screen.dart';
 import 'features/auth/presentation/otp_screen.dart';
 import 'features/auth/presentation/success_screen.dart';
-import 'features/auth/presentation/driver_dashboard_screen.dart';
 import 'features/home/presentation/driver_home_screen.dart';
 import 'features/rides/presentation/available_trips_screen.dart';
 import 'features/rides/presentation/schedule_trip_info_screen.dart';
 import 'features/rides/presentation/mail_parcels_screen.dart';
 import 'features/rides/presentation/mail_parcel_details_screen.dart';
-import 'features/home/presentation/driver_map_screen.dart';
 import 'features/rides/presentation/ride_active_screen.dart';
 import 'features/rides/presentation/trip_history_screen.dart';
-import 'features/rides/presentation/scheduled_trips_screen.dart';
 import 'features/profile/presentation/profile_screen.dart';
 import 'features/profile/presentation/profile_edit_screen.dart';
 import 'features/profile/presentation/payment_method_screen.dart';
@@ -138,7 +135,7 @@ class YallaDriverApp extends StatelessWidget {
         '/card_code': (context) => const CardCodeScreen(),
         '/card_success': (context) => const CardSuccessScreen(),
         '/trips': (context) => const TripHistoryScreen(),
-        '/schedule': (context) => const ScheduledTripsScreen(),
+        '/schedule': (context) => const ScheduleTripInfoScreen(),
         '/language': (context) => const LanguageScreen(),
         '/support': (context) => const SupportScreen(),
         '/chat': (context) => const ChatScreen(),

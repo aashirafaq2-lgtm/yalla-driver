@@ -23,9 +23,9 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
   final MapController _mapController = MapController();
   RideProgressStep _step = RideProgressStep.drivingToPickup;
 
-  LatLng _driverPos = const LatLng(35.4681, 44.3922);
-  LatLng _pickupPos = const LatLng(35.4720, 44.3880);
-  LatLng _dropPos = const LatLng(35.4850, 44.4050);
+  final LatLng _driverPos = const LatLng(35.4681, 44.3922);
+  final LatLng _pickupPos = const LatLng(35.4720, 44.3880);
+  final LatLng _dropPos = const LatLng(35.4850, 44.4050);
 
   @override
   void initState() {
@@ -101,7 +101,6 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
     final name = widget.tripData['name'] ?? 'Passenger';
     final from = widget.tripData['from'] ?? 'Kirkuk';
     final to = widget.tripData['to'] ?? 'Baghdad';
-    final phone = widget.tripData['phone'] ?? '07xx xxx xxxx';
     final price = widget.tripData['price'] ?? '25,000 IQD';
 
     return Scaffold(
@@ -244,15 +243,13 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                         ),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
+                            color: AppColors.primaryOrange.withOpacity(0.12),
                             shape: BoxShape.circle,
                           ),
                           child: IconButton(
-                            icon: const Icon(Icons.phone, color: Colors.green, size: 24),
+                            icon: const Icon(Icons.chat_bubble_outline, color: AppColors.primaryOrange, size: 24),
                             onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Calling passenger at $phone...')),
-                              );
+                              Navigator.pushNamed(context, '/chat');
                             },
                           ),
                         ),

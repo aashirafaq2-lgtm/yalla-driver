@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -203,11 +204,17 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                                                 'Accept & Start', 
                                                 const Color(0xFF65CA28),
                                                 onPressed: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) => TripOngoingScreen(tripData: trip),
-                                                    ),
+                                                  _confirmAction(
+                                                    title: 'Accept Trip',
+                                                    message: 'Are you sure you want to accept and start this trip?',
+                                                    onConfirm: () {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (context) => TripOngoingScreen(tripData: trip),
+                                                        ),
+                                                      );
+                                                    },
                                                   );
                                                 },
                                               ),
@@ -218,10 +225,16 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                                                 'Decline', 
                                                 const Color(0xFFFF1717),
                                                 onPressed: () {
-                                                  setState(() {
-                                                    _tripsList.removeAt(index);
-                                                    expandedIndex = null;
-                                                  });
+                                                  _confirmAction(
+                                                    title: 'Decline Trip',
+                                                    message: 'Are you sure you want to decline this trip?',
+                                                    onConfirm: () {
+                                                      setState(() {
+                                                        _tripsList.removeAt(index);
+                                                        expandedIndex = null;
+                                                      });
+                                                    },
+                                                  );
                                                 },
                                               ),
                                             ),
@@ -237,6 +250,38 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                       },
                     ),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmAction({
+    required String title,
+    required String message,
+    required VoidCallback onConfirm,
+  }) {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(title),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Text(message),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDestructiveAction: false,
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('No'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              onConfirm();
+            },
+            child: const Text('Yes'),
           ),
         ],
       ),

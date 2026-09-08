@@ -43,7 +43,7 @@ workflows:
           </dict>
           </plist>
           EOF
-          flutter build ipa --release --export-options-plist=/tmp/ExportOptions.plist
+          flutter build ipa --release --build-name=1.1 --build-number=12 --export-options-plist=/tmp/ExportOptions.plist
       - name: Upload to TestFlight
         script: |
           IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)

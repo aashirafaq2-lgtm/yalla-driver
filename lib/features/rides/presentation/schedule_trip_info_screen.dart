@@ -16,9 +16,130 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
   int _seatsAvailable = 4;
   String _fromCity = 'Kirkuk';
   String _toCity = 'Baghdad';
+  final List<String> _iraqiCities = [
+    'Kirkuk', 'Baghdad', 'Erbil', 'Basra', 'Sulaymaniyah', 
+    'Najaf', 'Karbala', 'Mosul', 'Duhok', 'Anbar', 'Babil'
+  ];
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _selectedTime = const TimeOfDay(hour: 14, minute: 0);
+
   String _availabilityStatus = 'All seats are available';
   final List<String> _statusOptions = ['All seats are available', 'Need passengers'];
   bool _isSubmitting = false;
+
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final dtDate = DateTime(dt.year, dt.month, dt.day);
+    if (dtDate == DateTime(now.year, now.month, now.day)) return 'Today';
+    if (dtDate == tomorrow) return 'Tomorrow';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  String _formatTime(TimeOfDay tod) {
+    final hour = tod.hourOfPeriod == 0 ? 12 : tod.hourOfPeriod;
+    final minute = tod.minute.toString().padLeft(2, '0');
+    final period = tod.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 60)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primaryOrange,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primaryOrange,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _selectedTime = picked);
+    }
+  }
+
+  Future<void> _pickCity(bool isOrigin) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  isOrigin ? 'Choose Departure City' : 'Choose Destination City',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _iraqiCities.length,
+                  itemBuilder: (context, index) {
+                    final city = _iraqiCities[index];
+                    return ListTile(
+                      title: Text(city, style: const TextStyle(fontSize: 16)),
+                      trailing: (isOrigin ? _fromCity == city : _toCity == city)
+                          ? const Icon(Icons.check, color: AppColors.primaryOrange)
+                          : null,
+                      onTap: () => Navigator.pop(context, city),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selected != null) {
+      setState(() {
+        if (isOrigin) {
+          _fromCity = selected;
+        } else {
+          _toCity = selected;
+        }
+      });
+    }
+  }
 
   Future<void> _submitTrip() async {
     setState(() => _isSubmitting = true);
@@ -26,12 +147,21 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
     final storage = Provider.of<StorageService>(context, listen: false);
     final token = await storage.getToken();
 
+    final combinedDeparture = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+
     try {
       if (token != null) {
         await api.createScheduledTrip({
           'fromGovernorate': _fromCity,
           'toGovernorate': _toCity,
-          'availableSeats': _seatsAvailable,
+          'departureTime': combinedDeparture.toIso8601String(),
+          'availableSeats': _availabilityStatus == 'Need passengers' ? _seatsAvailable : 4,
           'totalSeats': 4,
           'pricePerSeat': 15000,
         }, token);
@@ -100,9 +230,9 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
               ),
               child: Row(
                 children: [
-                  _buildDateTimeBtn('Choose date', 'Tomorrow'),
+                  _buildDateTimeBtn('Choose date', _formatDate(_selectedDate), onTap: _pickDate),
                   const SizedBox(width: 12),
-                  _buildDateTimeBtn('Choose time', '2:00 PM'),
+                  _buildDateTimeBtn('Choose time', _formatTime(_selectedTime), onTap: _pickTime),
                 ],
               ),
             ),
@@ -127,11 +257,11 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildCityChip(_fromCity),
+                        _buildCityChip(_fromCity, onTap: () => _pickCity(true)),
                         const SizedBox(width: 8),
                         Expanded(child: _buildRouteArrow()),
                         const SizedBox(width: 8),
-                        _buildCityChip(_toCity),
+                        _buildCityChip(_toCity, onTap: () => _pickCity(false)),
                       ],
                     ),
                     const SizedBox(height: 32),
@@ -139,9 +269,9 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildSubStat(Icons.event_seat_outlined, '$_seatsAvailable Seats'),
-                        _buildSubStat(Icons.access_time, '2:00 PM'),
-                        _buildSubStat(Icons.calendar_month_outlined, 'Tomorrow'),
+                        _buildSubStat(Icons.event_seat_outlined, '${_availabilityStatus == "Need passengers" ? _seatsAvailable : 4} Seats'),
+                        _buildSubStat(Icons.access_time, _formatTime(_selectedTime)),
+                        _buildSubStat(Icons.calendar_month_outlined, _formatDate(_selectedDate)),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -252,43 +382,51 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
     );
   }
 
-  Widget _buildDateTimeBtn(String title, String value) {
+  Widget _buildDateTimeBtn(String title, String value, {VoidCallback? onTap}) {
     return Expanded(
-      child: Container(
-        height: 65,
-        decoration: BoxDecoration(
-          color: AppColors.primaryOrange,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(color: AppColors.primaryOrange.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4))
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(title, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 2),
-            Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w400)),
-          ],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 65,
+          decoration: BoxDecoration(
+            color: AppColors.primaryOrange,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(color: AppColors.primaryOrange.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4))
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(title, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 2),
+              Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w400)),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCityChip(String city) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.primaryOrange,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(city, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-          const SizedBox(width: 4),
-          const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 18),
-        ],
+  Widget _buildCityChip(String city, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.primaryOrange,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(city, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 18),
+          ],
+        ),
       ),
     );
   }

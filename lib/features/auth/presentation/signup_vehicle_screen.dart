@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/auth_screen_layout.dart';
@@ -24,10 +23,12 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
   int seats = 4;
   bool _isCardIdUploaded = false;
   bool _isCarImageUploaded = false;
+  bool _isDriverFaceUploaded = false;
   bool _isLoading = false;
   
   Uint8List? _cardIdBytes;
   Uint8List? _carImageBytes;
+  Uint8List? _driverFaceBytes;
 
   @override
   void dispose() {
@@ -36,7 +37,8 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
     super.dispose();
   }
 
-  Future<void> _pickFile(bool isCardId, Function(void Function()) setDialogState) async {
+  Future<void> _pickFile(int uploadType, Function(void Function()) setDialogState) async {
+    // 0: Card ID, 1: Car Image, 2: Driver Face
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.image,
@@ -45,12 +47,22 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
 
       if (result != null && result.files.single.bytes != null) {
         setDialogState(() {
-          if (isCardId) _cardIdBytes = result.files.single.bytes;
-          else _carImageBytes = result.files.single.bytes;
+          if (uploadType == 0) {
+            _cardIdBytes = result.files.single.bytes;
+          } else if (uploadType == 1) {
+            _carImageBytes = result.files.single.bytes;
+          } else {
+            _driverFaceBytes = result.files.single.bytes;
+          }
         });
         setState(() {
-          if (isCardId) _cardIdBytes = result.files.single.bytes;
-          else _carImageBytes = result.files.single.bytes;
+          if (uploadType == 0) {
+            _cardIdBytes = result.files.single.bytes;
+          } else if (uploadType == 1) {
+            _carImageBytes = result.files.single.bytes;
+          } else {
+            _driverFaceBytes = result.files.single.bytes;
+          }
         });
       }
     } catch (e) {
@@ -58,12 +70,19 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
     }
   }
 
-  void _showUploadDialog(String title, bool isCardId) {
+  void _showUploadDialog(String title, int uploadType) {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          Uint8List? currentBytes = isCardId ? _cardIdBytes : _carImageBytes;
+          Uint8List? currentBytes;
+          if (uploadType == 0) {
+            currentBytes = _cardIdBytes;
+          } else if (uploadType == 1) {
+            currentBytes = _carImageBytes;
+          } else {
+            currentBytes = _driverFaceBytes;
+          }
           
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -73,7 +92,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
               children: [
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => _pickFile(isCardId, setDialogState),
+                  onTap: () => _pickFile(uploadType, setDialogState),
                   child: Container(
                     width: double.infinity,
                     height: 180,
@@ -107,8 +126,13 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
                   child: ElevatedButton(
                     onPressed: currentBytes == null ? null : () {
                       setState(() {
-                        if (isCardId) _isCardIdUploaded = true;
-                        else _isCarImageUploaded = true;
+                        if (uploadType == 0) {
+                          _isCardIdUploaded = true;
+                        } else if (uploadType == 1) {
+                          _isCarImageUploaded = true;
+                        } else {
+                          _isDriverFaceUploaded = true;
+                        }
                       });
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -238,13 +262,19 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
           _buildFunctionalUploadBox(
             label: 'Upload Card ID',
             isUploaded: _isCardIdUploaded,
-            onTap: () => _showUploadDialog('Upload Card ID', true),
+            onTap: () => _showUploadDialog('Upload Card ID', 0),
           ),
 
           _buildFunctionalUploadBox(
             label: 'Upload Image of car',
             isUploaded: _isCarImageUploaded,
-            onTap: () => _showUploadDialog('Upload Image of car', false),
+            onTap: () => _showUploadDialog('Upload Image of car', 1),
+          ),
+
+          _buildFunctionalUploadBox(
+            label: 'Photo for the driver face',
+            isUploaded: _isDriverFaceUploaded,
+            onTap: () => _showUploadDialog('Photo for the driver face', 2),
           ),
         ],
       ),
