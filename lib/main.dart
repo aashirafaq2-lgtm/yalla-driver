@@ -32,6 +32,7 @@ import 'core/network/api_service.dart';
 import 'core/services/storage_service.dart';
 import 'core/services/socket_service.dart';
 import 'core/services/background_service.dart';
+import 'core/services/notification_service.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/driver_locale_provider.dart';
 import 'package:provider/provider.dart';
