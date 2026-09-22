@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -166,7 +166,10 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
           Navigator.pushNamed(
             context, 
             '/signup_vehicle',
-            arguments: {'phone': _phoneController.text},
+            arguments: {
+              'phone': _phoneController.text,
+              'fullName': _nameController.text.trim(),
+            },
           );
         },
       ),

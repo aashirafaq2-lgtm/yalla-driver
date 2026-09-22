@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -11,7 +11,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<Map<String, dynamic>> _messages = [
-    {'text': 'Hello Yasser! How can I help you today?', 'isMe': false},
+    {'text': 'Hello! How can I help you today?', 'isMe': false},
   ];
 
   void _sendMessage() {

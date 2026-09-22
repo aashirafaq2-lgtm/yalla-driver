@@ -155,7 +155,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
     );
   }
 
-  Future<void> _handleNext(String? phone) async {
+  Future<void> _handleNext(String? phone, String? fullName) async {
     final cleanPhone = phone ?? '07701234567';
 
     setState(() => _isLoading = true);
@@ -176,6 +176,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
           '/otp',
           arguments: {
             'phone': cleanPhone,
+            'fullName': fullName ?? '',
             'vehicleName': _vehicleNameController.text.trim(),
             'carNumber': _carNumberController.text.trim(),
             'seats': seats,
@@ -187,7 +188,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
         Navigator.pushNamed(
           context, 
           '/otp',
-          arguments: {'phone': cleanPhone},
+          arguments: {'phone': cleanPhone, 'fullName': fullName ?? ''},
         );
       }
     } finally {
@@ -199,13 +200,14 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
   Widget build(BuildContext context) {
     final Map<String, dynamic>? args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final String? phone = args?['phone'];
+    final String? fullName = args?['fullName'];
 
     return AuthScreenLayout(
       title: 'Sign Up',
       onBack: () => Navigator.pop(context),
       bottomButton: IQButton(
         label: _isLoading ? 'Initializng...' : 'Next',
-        onTap: () => _handleNext(phone),
+        onTap: () => _handleNext(phone, fullName),
       ),
       child: Column(
         children: [

@@ -32,8 +32,8 @@ import 'core/network/api_service.dart';
 import 'core/services/storage_service.dart';
 import 'core/services/socket_service.dart';
 import 'core/services/background_service.dart';
-import 'core/services/notification_service.dart';
 import 'core/providers/auth_provider.dart';
+import 'core/providers/driver_locale_provider.dart';
 import 'package:provider/provider.dart';
 
 void main() async {
@@ -64,6 +64,7 @@ void main() async {
   final storageService = StorageService();
   final socketService = SocketService(storageService);
   final authProvider = AuthProvider(apiService, storageService);
+  final driverLocaleProvider = DriverLocaleProvider();
   authProvider.setSocketService(socketService);
 
   // Initialize socket connection
@@ -74,6 +75,7 @@ void main() async {
       providers: [
         Provider.value(value: apiService),
         ChangeNotifierProvider.value(value: authProvider),
+        ChangeNotifierProvider.value(value: driverLocaleProvider),
         Provider.value(value: socketService),
         Provider.value(value: storageService),
         Provider.value(value: NotificationService()),
@@ -89,9 +91,16 @@ class YallaDriverApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localeProvider = Provider.of<DriverLocaleProvider>(context);
+
     return MaterialApp(
       title: 'Yalla Driver',
       debugShowCheckedModeBanner: false,
+      locale: localeProvider.locale,
+      supportedLocales: const [
+        Locale('ar'),
+        Locale('en'),
+      ],
       theme: ThemeData(
         useMaterial3: true,
         primaryColor: AppColors.primaryOrange,

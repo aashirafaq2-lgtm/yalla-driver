@@ -18,8 +18,8 @@ class OTPVerificationScreen extends StatefulWidget {
 }
 
 class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
-  final List<TextEditingController> _controllers = List.generate(4, (_) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
+  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
   
   @override
@@ -35,23 +35,42 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   String get _phone => widget.phone ?? '07701234567';
 
   Future<void> _verifyOtp() async {
-    if (_otp.length < 4) return;
+    if (_otp.length < 6) return;
     setState(() => _isLoading = true);
     
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final socket = Provider.of<SocketService>(context, listen: false);
       final storage = Provider.of<StorageService>(context, listen: false);
+      final api = Provider.of<ApiService>(context, listen: false);
 
       final success = await authProvider.verifyOtp(_phone, _otp);
       
       final Map<String, dynamic>? args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      
+      // Register vehicle if signup flow
       if (args != null && args['vehicleName'] != null) {
         await authProvider.registerVehicle(
           carName: args['vehicleName'],
           seats: args['seats'] ?? 4,
           carNumber: args['carNumber'] ?? 'IQ-1234',
         );
+      }
+
+      // Save driver's name to backend profile
+      if (args != null && args['fullName'] != null && (args['fullName'] as String).isNotEmpty) {
+        final token = await storage.getToken();
+        if (token != null) {
+          final fullName = args['fullName'] as String;
+          final parts = fullName.split(' ');
+          final firstName = parts.isNotEmpty ? parts.first : fullName;
+          final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+          try {
+            await api.updateProfile({'firstName': firstName, 'lastName': lastName}, token);
+          } catch (e) {
+            debugPrint('Profile name update error: $e');
+          }
+        }
       }
 
       final userId = await storage.getUserId();
@@ -97,9 +116,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
             const SizedBox(height: 60),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(4, (i) => Container(
-                width: 70,
-                height: 80,
+              children: List.generate(6, (i) => Container(
+                width: 50,
+                height: 65,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(15),
@@ -126,9 +145,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                       contentPadding: EdgeInsets.zero,
                     ),
                     onChanged: (val) {
-                      if (val.isNotEmpty && i < 3) _focusNodes[i + 1].requestFocus();
+                      if (val.isNotEmpty && i < 5) _focusNodes[i + 1].requestFocus();
                       if (val.isEmpty && i > 0) _focusNodes[i - 1].requestFocus();
-                      if (_otp.length == 4) _verifyOtp();
+                      if (_otp.length == 6) _verifyOtp();
                     },
                   ),
                 ),
