@@ -32,7 +32,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
         final res = await api.getHistory(token);
         if (res.statusCode == 200) {
           setState(() {
-            _trips = res.data['history'] ?? res.data['trips'] ?? [];
+            _trips = res.data['rides'] ?? res.data['history'] ?? res.data['trips'] ?? [];
             _isLoading = false;
           });
           return;

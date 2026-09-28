@@ -1,5 +1,4 @@
-﻿import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import 'package:flutter/material.dart';
 
 class IQButton extends StatelessWidget {
   final String label;
@@ -122,15 +121,12 @@ class IQPhoneInput extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
+          child: const Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network('https://flagcdn.com/w40/iq.png', width: 24),
-              ),
-              const SizedBox(width: 8),
-              const Text('+964', style: TextStyle(fontWeight: FontWeight.bold)),
-              const Icon(Icons.keyboard_arrow_down, size: 18),
+              Text('🇮🇶', style: TextStyle(fontSize: 22)),
+              SizedBox(width: 8),
+              Text('+964', style: TextStyle(fontWeight: FontWeight.bold)),
+              Icon(Icons.keyboard_arrow_down, size: 18),
             ],
           ),
         ),

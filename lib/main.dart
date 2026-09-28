@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/theme/app_colors.dart';
 import 'features/splash/presentation/splash_screen.dart';
@@ -33,6 +34,7 @@ import 'core/services/storage_service.dart';
 import 'core/services/socket_service.dart';
 import 'core/services/background_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/deferred_link_service.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/driver_locale_provider.dart';
 import 'package:provider/provider.dart';
@@ -52,6 +54,7 @@ void main() async {
   // Initialize Local Notifications safely
   try {
     await NotificationService.initialize();
+    DeferredLinkService.resolveOnStartup();
   } catch (e) {
     debugPrint('Notification init error (non-fatal): $e');
   }
@@ -94,13 +97,20 @@ class YallaDriverApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final localeProvider = Provider.of<DriverLocaleProvider>(context);
 
-    return MaterialApp(
+    return Directionality(
+      textDirection: localeProvider.isArabic ? TextDirection.rtl : TextDirection.ltr,
+      child: MaterialApp(
       title: 'Yalla Driver',
       debugShowCheckedModeBanner: false,
-      locale: localeProvider.locale,
+      locale: localeProvider.isArabic ? const Locale('ar') : const Locale('en'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       supportedLocales: const [
-        Locale('ar'),
         Locale('en'),
+        Locale('ar'),
       ],
       theme: ThemeData(
         useMaterial3: true,
@@ -150,6 +160,7 @@ class YallaDriverApp extends StatelessWidget {
         '/support': (context) => const SupportScreen(),
         '/chat': (context) => const ChatScreen(),
       },
+      ),
     );
   }
 }

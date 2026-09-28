@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class DriverLocaleProvider extends ChangeNotifier {
   static const String _prefKey = 'driver_language_code';
   final _storage = const FlutterSecureStorage();
-  Locale _locale = const Locale('ar'); // Default for drivers is Arabic
+  Locale _locale = const Locale('en'); // Default for drivers is English (LTR)
 
   Locale get locale => _locale;
   bool get isArabic => _locale.languageCode == 'ar';
@@ -15,7 +15,7 @@ class DriverLocaleProvider extends ChangeNotifier {
 
   Future<void> _loadSavedLocale() async {
     try {
-      final code = await _storage.read(key: _prefKey) ?? 'ar';
+      final code = await _storage.read(key: _prefKey) ?? 'en';
       _locale = Locale(code);
       notifyListeners();
     } catch (_) {}

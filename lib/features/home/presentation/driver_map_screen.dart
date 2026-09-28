@@ -10,6 +10,7 @@ import '../../../../core/services/socket_service.dart';
 import '../../../../core/network/api_service.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/providers/auth_provider.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../rides/presentation/trip_ongoing_screen.dart';
 
 // Kirkuk, Iraq coordinates (matches the default map center)
@@ -49,6 +50,14 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       if (!mounted) return;
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (!auth.isOnline) return;
+
+      // Show local notification (Uber-style alert)
+      NotificationService.showNotification(
+        id: 1,
+        title: '🚕 New Ride Request!',
+        body: 'From: ${data['pickupName'] ?? 'Pickup'} → ${data['dropName'] ?? 'Destination'}',
+        payload: data['id']?.toString() ?? '',
+      );
 
       setState(() => _pendingRideRequest = data);
       _showRideRequestSheet(data);

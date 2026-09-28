@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
 class ApiService {
   final Dio dio = Dio(
@@ -107,6 +106,26 @@ class ApiService {
     );
   }
 
+  Future<Response> verifyOtpForRide(String rideId, String otp, String token) async {
+    return await dio.post('/ride/verify-otp',
+      data: {'rideId': rideId, 'otp': otp},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> getChatMessages(String rideId, String token) async {
+    return await dio.get('/chat/$rideId',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> cancelRide(String rideId, String reason, String token) async {
+    return await dio.patch('/ride/cancel',
+      data: {'rideId': rideId, 'reason': reason},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
   // Trips
   Future<Response> getAvailableTrips({String? from, String? to, String? date}) async {
     return await dio.get('/trips/available', queryParameters: {
@@ -164,8 +183,12 @@ class ApiService {
     });
   }
 
-  Future<Response> getMapConfig() async {
-    return await dio.get('/map/config');
+  Future<Response> getNotifications(String token) async {
+    return await dio.get('/user/notifications', options: Options(headers: {'Authorization': 'Bearer $token'}));
+  }
+
+  Future<Response> markNotificationsRead(String token) async {
+    return await dio.patch('/user/notifications/mark-read', options: Options(headers: {'Authorization': 'Bearer $token'}));
   }
 }
 

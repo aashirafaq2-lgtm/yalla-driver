@@ -1,13 +1,19 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/socket_service.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/driver_locale_provider.dart';
+import '../../profile/presentation/chat_screen.dart';
 
 enum RideProgressStep { drivingToPickup, arrivedAtPickup, inProgress, completed }
 
@@ -23,85 +29,525 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
   final MapController _mapController = MapController();
   RideProgressStep _step = RideProgressStep.drivingToPickup;
 
-  final LatLng _driverPos = const LatLng(35.4681, 44.3922);
-  final LatLng _pickupPos = const LatLng(35.4720, 44.3880);
-  final LatLng _dropPos = const LatLng(35.4850, 44.4050);
+  late LatLng _pickupPos;
+  late LatLng _dropPos;
+  LatLng _driverPos = const LatLng(33.3152, 44.3661);
+  StreamSubscription<Position>? _positionSub;
+  bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
+    final pLat = double.tryParse(widget.tripData['pickupLat']?.toString() ?? '') ?? 33.3152;
+    final pLng = double.tryParse(widget.tripData['pickupLng']?.toString() ?? '') ?? 44.3661;
+    final dLat = double.tryParse(widget.tripData['dropLat']?.toString() ?? '') ?? 33.3000;
+    final dLng = double.tryParse(widget.tripData['dropLng']?.toString() ?? '') ?? 44.3800;
+
+    _pickupPos = LatLng(pLat, pLng);
+    _dropPos = LatLng(dLat, dLng);
+    _driverPos = LatLng(pLat, pLng);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _joinRideAndBroadcastLocation();
+      _startLiveGpsTracking();
     });
+  }
+
+  void _startLiveGpsTracking() async {
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.deniedForever) return;
+
+      _positionSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 8),
+      ).listen((pos) {
+        if (!mounted) return;
+        setState(() {
+          _driverPos = LatLng(pos.latitude, pos.longitude);
+        });
+        final socket = Provider.of<SocketService>(context, listen: false);
+        final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
+        socket.updateLocation(
+          pos.latitude,
+          pos.longitude,
+          activeRideId: rideId,
+          heading: pos.heading,
+          speed: pos.speed,
+        );
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    super.dispose();
   }
 
   void _joinRideAndBroadcastLocation() {
     final socket = Provider.of<SocketService>(context, listen: false);
-    final rideId = widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride';
+    final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
     socket.joinRide(rideId);
     socket.updateLocation(_driverPos.latitude, _driverPos.longitude, activeRideId: rideId);
   }
 
-  String get _stepButtonLabel {
+  String _getStepButtonLabel(bool isArabic) {
     switch (_step) {
       case RideProgressStep.drivingToPickup:
-        return 'Arrived at Pickup';
+        return isArabic ? 'وصلت لنقطة الانطلاق' : 'Arrived at Pickup';
       case RideProgressStep.arrivedAtPickup:
-        return 'Confirm Pickup';
+        return isArabic ? 'تأكيد الرمز وبدء الرحلة' : 'Verify PIN & Start Trip';
       case RideProgressStep.inProgress:
-        return 'Finish Trip';
+        return isArabic ? 'إنهاء الرحلة' : 'Finish Trip';
       case RideProgressStep.completed:
-        return 'Trip Completed';
+        return isArabic ? 'اكتملت الرحلة' : 'Trip Completed';
     }
   }
 
   Future<void> _handleStepAction() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+
     final socket = Provider.of<SocketService>(context, listen: false);
     final api = Provider.of<ApiService>(context, listen: false);
     final storage = Provider.of<StorageService>(context, listen: false);
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final token = await storage.getToken();
 
-    final rideId = widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride';
+    final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
 
-    if (_step == RideProgressStep.drivingToPickup) {
-      setState(() => _step = RideProgressStep.arrivedAtPickup);
-      socket.changeStatus(rideId: rideId, status: 'ARRIVED');
-      if (token != null) api.updateRideStatus(rideId, 'ARRIVED', token);
-    } else if (_step == RideProgressStep.arrivedAtPickup) {
-      setState(() => _step = RideProgressStep.inProgress);
-      socket.changeStatus(rideId: rideId, status: 'PICKED_UP');
-      if (token != null) api.updateRideStatus(rideId, 'PICKED_UP', token);
-    } else if (_step == RideProgressStep.inProgress) {
-      setState(() => _step = RideProgressStep.completed);
-      
-      final priceStr = widget.tripData['price']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '10000';
-      final finalPrice = double.tryParse(priceStr) ?? 10000.0;
+    try {
+      if (_step == RideProgressStep.drivingToPickup) {
+        // Driver marks arrived
+        socket.changeStatus(rideId: rideId, status: 'ARRIVED');
+        if (token != null) {
+          await api.updateRideStatus(rideId, 'ARRIVED', token);
+        }
+        setState(() {
+          _step = RideProgressStep.arrivedAtPickup;
+          _isProcessing = false;
+        });
+      } else if (_step == RideProgressStep.arrivedAtPickup) {
+        setState(() => _isProcessing = false);
+        // Prompt for 4-digit PIN OTP
+        _showOtpVerificationDialog(rideId);
+      } else if (_step == RideProgressStep.inProgress) {
+        // Driver finishes trip
+        final priceStr = widget.tripData['price']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '10000';
+        final finalPrice = double.tryParse(priceStr) ?? 10000.0;
 
-      socket.changeStatus(
-        rideId: rideId,
-        status: 'COMPLETED',
-        payload: {'finalPrice': finalPrice},
-      );
+        socket.changeStatus(
+          rideId: rideId,
+          status: 'COMPLETED',
+          payload: {'finalPrice': finalPrice},
+        );
 
-      if (token != null) {
-        await api.updateRideStatus(rideId, 'COMPLETED', token, finalPrice: finalPrice);
+        if (token != null) {
+          await api.updateRideStatus(rideId, 'COMPLETED', token, finalPrice: finalPrice);
+        }
+
+        await auth.loadProfile();
+
+        setState(() {
+          _step = RideProgressStep.completed;
+          _isProcessing = false;
+        });
+
+        if (mounted) {
+          _showCompletionDialog(context, finalPrice);
+        }
       }
-
-      await auth.loadProfile();
-
-      if (mounted) {
-        _showCompletionDialog(context, finalPrice);
-      }
+    } catch (e) {
+      debugPrint('Step action note: $e');
+      setState(() => _isProcessing = false);
     }
+  }
+
+  void _showOtpVerificationDialog(String rideId) {
+    final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
+    final isArabic = locale.isArabic;
+    final pinController = TextEditingController();
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.pin_outlined, color: AppColors.primaryOrange, size: 28),
+              const SizedBox(width: 8),
+              Text(
+                isArabic ? 'تأكيد رمز أمان الراكب' : 'Verify Passenger PIN',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                isArabic
+                    ? 'اطلب رمز PIN المكون من 4 أرقام من الراكب لبدء الرحلة:'
+                    : 'Ask the passenger for their 4-digit PIN code to start the trip:',
+                style: GoogleFonts.inter(color: Colors.black54, fontSize: 13),
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: pinController,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                maxLength: 4,
+                style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 8),
+                decoration: InputDecoration(
+                  counterText: '',
+                  hintText: '••••',
+                  hintStyle: const TextStyle(letterSpacing: 8, color: Colors.black26),
+                  filled: true,
+                  fillColor: const Color(0xFFF1F5F9),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  errorText: errorMessage,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(isArabic ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.black54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              onPressed: () async {
+                final otp = pinController.text.trim();
+                if (otp.length < 4) {
+                  setDialogState(() {
+                    errorMessage = isArabic ? 'الرمز يجب أن يتكون من 4 أرقام' : 'Code must be 4 digits';
+                  });
+                  return;
+                }
+
+                final api = Provider.of<ApiService>(context, listen: false);
+                final storage = Provider.of<StorageService>(context, listen: false);
+                final socket = Provider.of<SocketService>(context, listen: false);
+                final token = await storage.getToken();
+
+                try {
+                  if (token != null) {
+                    await api.verifyOtpForRide(rideId, otp, token);
+                  }
+                  socket.changeStatus(rideId: rideId, status: 'PICKED_UP');
+
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                    setState(() => _step = RideProgressStep.inProgress);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(isArabic ? 'تم تأكيد الرمز وبدء الرحلة بنجاح!' : 'PIN Verified! Trip started.'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  setDialogState(() {
+                    errorMessage = isArabic ? 'رمز التحقق غير صحيح، يرجى التأكد من الراكب' : 'Invalid PIN code. Please confirm with passenger.';
+                  });
+                }
+              },
+              child: Text(
+                isArabic ? 'تحقق وبدء' : 'Verify & Start',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCompletionDialog(BuildContext context, double finalPrice) {
+    final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
+    final isArabic = locale.isArabic;
+
+    final commission = (finalPrice * 0.15).round();
+    final driverNet = (finalPrice - commission).round();
+
+    String formatIqd(num amount) {
+      return amount.toInt().toString().replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (Match m) => '${m[1]},',
+      );
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 54),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isArabic ? 'اكتملت الرحلة بنجاح!' : 'Trip Completed!',
+              style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isArabic ? 'تم تسجيل الأرباح في محفظتك' : 'Earnings have been credited to your wallet',
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.black54),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black.withOpacity(0.06)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(isArabic ? 'إجمالي الأجرة' : 'Total Fare', style: GoogleFonts.inter(color: Colors.black54, fontSize: 13)),
+                      Text('${formatIqd(finalPrice)} IQD', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(isArabic ? 'عمولة المنصة (15%)' : 'Platform fee (15%)', style: GoogleFonts.inter(color: Colors.black54, fontSize: 13)),
+                      Text('- ${formatIqd(commission)} IQD', style: GoogleFonts.outfit(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                  const Divider(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(isArabic ? 'صافي أرباحك' : 'Your Net Earnings', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
+                      Text(
+                        '+ ${formatIqd(driverNet)} IQD',
+                        style: GoogleFonts.outfit(color: AppColors.success, fontWeight: FontWeight.w900, fontSize: 18),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black87,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context); // Return to home/map
+                },
+                child: Text(
+                  isArabic ? 'العودة للرئيسية' : 'Back to Dashboard',
+                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDriverCancelDialog(String rideId) {
+    final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
+    final isArabic = locale.isArabic;
+
+    final reasons = isArabic
+        ? ['تعذر الوصول للراكب', 'الراكب لم يحضر لنقطة الانطلاق', 'عطل في المركبة', 'ازدحام شديد / إغلاق طريق']
+        : ['Cannot reach passenger', 'Passenger no-show', 'Vehicle breakdown', 'Heavy road obstruction'];
+
+    String selectedReason = reasons[0];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) => Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              Text(
+                isArabic ? 'إلغاء الرحلة' : 'Cancel Trip',
+                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isArabic ? 'يرجى اختيار سبب الإلغاء:' : 'Please select cancellation reason:',
+                style: GoogleFonts.inter(color: Colors.black54, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              ...reasons.map((r) => RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(r, style: GoogleFonts.inter(fontSize: 14)),
+                    value: r,
+                    groupValue: selectedReason,
+                    activeColor: AppColors.primaryOrange,
+                    onChanged: (val) {
+                      if (val != null) setSheetState(() => selectedReason = val);
+                    },
+                  )),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(isArabic ? 'رجوع' : 'Dismiss', style: const TextStyle(color: Colors.black87)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        final api = Provider.of<ApiService>(context, listen: false);
+                        final storage = Provider.of<StorageService>(context, listen: false);
+                        final token = await storage.getToken();
+
+                        if (token != null) {
+                          try {
+                            await api.cancelRide(rideId, selectedReason, token);
+                          } catch (e) {
+                            debugPrint('Cancel ride note: $e');
+                          }
+                        }
+
+                        if (mounted) {
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: Text(
+                        isArabic ? 'تأكيد الإلغاء' : 'Confirm Cancel',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPassengerPhoneDialog(String name, String phone) {
+    final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
+    final isArabic = locale.isArabic;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(isArabic ? 'الاتصال بالراكب' : 'Call Passenger', style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
+              child: const Icon(Icons.phone, color: AppColors.primaryOrange, size: 30),
+            ),
+            const SizedBox(height: 16),
+            Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const SizedBox(height: 6),
+            Text(phone, style: const TextStyle(color: Colors.black54, fontSize: 16, letterSpacing: 1)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isArabic ? 'إلغاء' : 'Close', style: const TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: phone));
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(isArabic ? 'تم نسخ رقم الهاتف: $phone' : 'Copied phone: $phone')),
+              );
+            },
+            child: Text(isArabic ? 'نسخ الرقم' : 'Copy Number', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final name = widget.tripData['name'] ?? 'Passenger';
-    final from = widget.tripData['from'] ?? 'Kirkuk';
-    final to = widget.tripData['to'] ?? 'Baghdad';
-    final price = widget.tripData['price'] ?? '25,000 IQD';
+    final locale = Provider.of<DriverLocaleProvider>(context);
+    final isArabic = locale.isArabic;
+
+    final name = widget.tripData['name'] ?? (isArabic ? 'الراكب' : 'Passenger');
+    final from = widget.tripData['from'] ?? 'Pickup';
+    final to = widget.tripData['to'] ?? 'Destination';
+    final price = widget.tripData['price'] ?? '10,000 IQD';
+    final phone = widget.tripData['phone'] ?? '07700000000';
+    final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -118,18 +564,25 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
           children: [
             const Text(
               'Yalla ',
-              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 28),
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 26),
             ),
             Text(
               'يَلَّا',
-              style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 28),
+              style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 26),
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 24),
+            tooltip: isArabic ? 'إلغاء الرحلة' : 'Cancel Trip',
+            onPressed: () => _showDriverCancelDialog(rideId),
+          ),
+        ],
       ),
       body: Stack(
         children: [
-          // ── Real Live OpenStreetMap ─────────────────────────────────
+          // Live OpenStreetMap
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -184,12 +637,12 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
             ],
           ),
 
-          // ── Trip Details Overlay Card ─────────────────────────────────
+          // Trip Details Bottom Card
           Align(
             alignment: Alignment.bottomCenter,
             child: FadeInUp(
               child: Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
@@ -209,13 +662,13 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                     Row(
                       children: [
                         Container(
-                          width: 60,
-                          height: 60,
+                          width: 54,
+                          height: 54,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.primaryOrange.withOpacity(0.1),
+                            color: AppColors.primaryOrange.withOpacity(0.12),
                           ),
-                          child: const Icon(Icons.person, size: 36, color: AppColors.primaryOrange),
+                          child: const Icon(Icons.person, size: 32, color: AppColors.primaryOrange),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -224,7 +677,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                             children: [
                               Text(
                                 name,
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
                               ),
                               Row(
                                 children: [
@@ -241,41 +694,59 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                             ],
                           ),
                         ),
+                        // Call Action
+                        IconButton(
+                          icon: const Icon(Icons.call, color: Colors.black87, size: 22),
+                          onPressed: () => _showPassengerPhoneDialog(name, phone),
+                        ),
+                        // Chat Action
                         Container(
                           decoration: BoxDecoration(
                             color: AppColors.primaryOrange.withOpacity(0.12),
                             shape: BoxShape.circle,
                           ),
                           child: IconButton(
-                            icon: const Icon(Icons.chat_bubble_outline, color: AppColors.primaryOrange, size: 24),
+                            icon: const Icon(Icons.chat_bubble_outline, color: AppColors.primaryOrange, size: 22),
                             onPressed: () {
-                              Navigator.pushNamed(context, '/chat');
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChatScreen(
+                                    rideId: rideId,
+                                    passengerName: name,
+                                  ),
+                                ),
+                              );
                             },
                           ),
                         ),
                       ],
                     ),
-                    const Divider(height: 28),
-                    _buildInfoRow(Icons.trip_origin, 'Pickup', from, Colors.green),
+                    const Divider(height: 24),
+                    _buildInfoRow(Icons.trip_origin, isArabic ? 'نقطة الانطلاق' : 'Pickup', from, Colors.green),
                     const SizedBox(height: 10),
-                    _buildInfoRow(Icons.location_on, 'Drop-off', to, Colors.red),
-                    const SizedBox(height: 20),
+                    _buildInfoRow(Icons.location_on, isArabic ? 'نقطة الوصول' : 'Drop-off', to, Colors.red),
+                    const SizedBox(height: 18),
                     Row(
                       children: [
                         Expanded(
                           child: SizedBox(
                             height: 54,
                             child: ElevatedButton(
-                              onPressed: _step == RideProgressStep.completed ? null : _handleStepAction,
+                              onPressed: (_step == RideProgressStep.completed || _isProcessing) ? null : _handleStepAction,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: _step == RideProgressStep.inProgress ? Colors.green : AppColors.primaryOrange,
+                                backgroundColor: _step == RideProgressStep.inProgress
+                                    ? Colors.green
+                                    : (_step == RideProgressStep.arrivedAtPickup ? AppColors.primaryDark : AppColors.primaryOrange),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                 elevation: 3,
                               ),
-                              child: Text(
-                                _stepButtonLabel,
-                                style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
-                              ),
+                              child: _isProcessing
+                                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                  : Text(
+                                      _getStepButtonLabel(isArabic),
+                                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                                    ),
                             ),
                           ),
                         ),
@@ -292,7 +763,10 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                             onPressed: () {
                               _mapController.move(_driverPos, 15.0);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Centered on navigation route'), duration: Duration(seconds: 1)),
+                                SnackBar(
+                                  content: Text(isArabic ? 'تمت المحاذاة مع مسار الملاحة' : 'Centered on navigation route'),
+                                  duration: const Duration(seconds: 1),
+                                ),
                               );
                             },
                           ),
@@ -311,7 +785,11 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
 
   Widget _buildPin(IconData icon, Color color) {
     return Container(
-      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+      ),
       child: Icon(icon, color: color, size: 22),
     );
   }
@@ -321,57 +799,21 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
       children: [
         Icon(icon, color: color, size: 20),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-            Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
-
-  void _showCompletionDialog(BuildContext context, double amount) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Center(child: Text('Trip Completed! 🎉', style: TextStyle(fontWeight: FontWeight.bold))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 70),
-            const SizedBox(height: 16),
-            const Text('You have successfully finished the trip.', textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            Text('${amount.toStringAsFixed(0)} IQD', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.primaryOrange)),
-            const SizedBox(height: 4),
-            const Text('Credited to your driver wallet', style: TextStyle(color: Colors.black45, fontSize: 12)),
-          ],
-        ),
-        actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.of(context).pop();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  minimumSize: const Size(180, 48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Back to Home', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
-

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import 'package:animate_do/animate_do.dart';
 
@@ -18,93 +18,108 @@ class AuthScreenLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
       backgroundColor: AppColors.primaryOrange,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-                child: FadeInDown(
-                  duration: const Duration(milliseconds: 600),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(40),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 15),
-                        if (onBack != null || title != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 15),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                if (onBack != null)
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: IconButton(
-                                      onPressed: onBack,
-                                      icon: Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              blurRadius: 10,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                          child: FadeInDown(
+                            duration: const Duration(milliseconds: 500),
+                            child: Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(40),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(height: 15),
+                                  if (onBack != null || title != null)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 15),
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          if (onBack != null)
+                                            Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: IconButton(
+                                                onPressed: onBack,
+                                                icon: Container(
+                                                  padding: const EdgeInsets.all(8),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    shape: BoxShape.circle,
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black.withOpacity(0.1),
+                                                        blurRadius: 10,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: const Icon(Icons.arrow_back, color: Colors.black, size: 20),
+                                                ),
+                                              ),
                                             ),
-                                          ],
-                                        ),
-                                        child: const Icon(Icons.arrow_back, color: Colors.black, size: 20),
+                                          if (title != null)
+                                            Text(
+                                              title!,
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+                                    child: child,
                                   ),
-                                if (title != null)
-                                  Text(
-                                    title!,
-                                    style: const TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
-                            child: child,
+                        ),
+                      ),
+                      if (bottomButton != null)
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(25, 10, 25, isKeyboardOpen ? 12 : 25),
+                          child: FadeInUp(
+                            duration: const Duration(milliseconds: 500),
+                            child: bottomButton!,
                           ),
                         ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               ),
-            ),
-            if (bottomButton != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(25, 10, 25, 30),
-                child: FadeInUp(
-                  duration: const Duration(milliseconds: 600),
-                  child: bottomButton!,
-                ),
-              ),
-          ],
+            );
+          },
         ),
       ),
     );

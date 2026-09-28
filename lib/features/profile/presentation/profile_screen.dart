@@ -3,6 +3,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/providers/auth_provider.dart';
+import '../../home/presentation/driver_notifications_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -112,7 +113,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
 
               // ── Menu Items ────────────────────────────────────────────
-              _buildMenuItem(context, Icons.credit_card_outlined, 'Payment method', '/payment', 0),
+              _buildMenuItem(context, Icons.notifications_none_rounded, 'Notifications', '/notifications', 0, customTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DriverNotificationsScreen()));
+              }),
+              _buildMenuItem(context, Icons.credit_card_outlined, 'Payment method', '/payment', 50),
               _buildMenuItem(context, Icons.person_pin_outlined, 'Trip History', '/trips', 100),
               _buildMenuItem(context, Icons.person_pin_circle_outlined, 'My Scheduled Trips', '/schedule', 200),
               _buildMenuItem(context, Icons.language, 'Language', '/language', 300),

@@ -106,6 +106,7 @@ class SocketService {
       'heading': heading ?? 0,
       'speed': speed ?? 0,
       'activeRideId': activeRideId,
+      'rideId': activeRideId,
     });
   }
 
