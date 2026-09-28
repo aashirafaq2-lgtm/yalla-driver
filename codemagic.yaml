@@ -44,12 +44,10 @@ workflows:
           </plist>
           EOF
           flutter build ipa --release --build-name=1.2.1 --build-number=15 --export-options-plist=/tmp/ExportOptions.plist
-      - name: Upload to TestFlight
-        script: |
-          IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
-          if [ -n "$IPA_FILE" ]; then
-            app-store-connect publish --path "$IPA_FILE" || true
-          fi
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild.log
