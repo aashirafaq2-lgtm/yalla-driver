@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 class ApiService {
   final Dio dio = Dio(
     BaseOptions(
-      baseUrl: 'http://72.62.50.86/api',
+      baseUrl: 'https://api-yalla.aaaj.shop/api',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       headers: {

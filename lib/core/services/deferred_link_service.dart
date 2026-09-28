@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DeferredLinkService {
-  static const String _baseUrl = 'http://72.62.50.86/api';
+  static const String _baseUrl = 'https://api-yalla.aaaj.shop/api';
   static const String _keyPendingReferral = 'pending_referral_code';
 
   /// Initialize deep link listening and deferred deep link resolution on app startup
