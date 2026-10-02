@@ -13,6 +13,7 @@ import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/driver_locale_provider.dart';
+import '../../../core/providers/active_ride_provider.dart';
 import '../../profile/presentation/chat_screen.dart';
 
 enum RideProgressStep { drivingToPickup, arrivedAtPickup, inProgress, completed }
@@ -223,18 +224,36 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
           }
         }
 
-        socket.changeStatus(rideId: rideId, status: 'ARRIVED');
-        if (token != null) {
-          if (widget.tripData['isTripMode'] == true) {
-            await api.updateTripStatus(rideId, 'ARRIVED', token);
-          } else {
-            await api.updateRideStatus(rideId, 'ARRIVED', token);
-          }
-        }
+        // Optimistically update UI step immediately like Uber
         setState(() {
           _step = RideProgressStep.arrivedAtPickup;
           _isProcessing = false;
         });
+
+        // Update active ride status in global provider
+        try {
+          Provider.of<ActiveRideProvider>(context, listen: false).updateRideStatus('ARRIVED');
+        } catch (_) {}
+
+        // Emit socket event to passenger
+        try {
+          socket.changeStatus(rideId: rideId, status: 'ARRIVED');
+        } catch (e) {
+          debugPrint('Socket arrived error: $e');
+        }
+
+        // Notify backend API
+        if (token != null) {
+          try {
+            if (widget.tripData['isTripMode'] == true) {
+              await api.updateTripStatus(rideId, 'ARRIVED', token);
+            } else {
+              await api.updateRideStatus(rideId, 'ARRIVED', token);
+            }
+          } catch (e) {
+            debugPrint('API updateRideStatus ARRIVED note: $e');
+          }
+        }
       } else if (_step == RideProgressStep.arrivedAtPickup) {
         setState(() => _isProcessing = false);
         _showOtpVerificationDialog(rideId);
@@ -257,6 +276,10 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
         }
 
         await auth.loadProfile();
+
+        try {
+          Provider.of<ActiveRideProvider>(context, listen: false).clearActiveRide();
+        } catch (_) {}
 
         setState(() {
           _step = RideProgressStep.completed;
@@ -502,114 +525,142 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
         ? ['تعذر الوصول للراكب', 'الراكب لم يحضر لنقطة الانطلاق', 'عطل في المركبة', 'ازدحام شديد / إغلاق طريق']
         : ['Cannot reach passenger', 'Passenger no-show', 'Vehicle breakdown', 'Heavy road obstruction'];
 
-    String selectedReason = reasons[0];
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setSheetState) => Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+      builder: (ctx) {
+        String currentReason = reasons[0];
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) => Container(
+            padding: const EdgeInsets.all(24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                  ),
                 ),
-              ),
-              Text(
-                isArabic ? 'إلغاء الرحلة' : 'Cancel Trip',
-                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                isArabic ? 'يرجى اختيار سبب الإلغاء:' : 'Please select cancellation reason:',
-                style: GoogleFonts.inter(color: Colors.black54, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              ...reasons.map((r) => RadioListTile<String>(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(r, style: GoogleFonts.inter(fontSize: 14)),
-                    value: r,
-                    groupValue: selectedReason,
-                    activeColor: AppColors.primaryOrange,
-                    onChanged: (val) {
-                      if (val != null) setSheetState(() => selectedReason = val);
+                Text(
+                  isArabic ? 'إلغاء الرحلة' : 'Cancel Trip',
+                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  isArabic ? 'يرجى اختيار سبب الإلغاء:' : 'Please select cancellation reason:',
+                  style: GoogleFonts.inter(color: Colors.black54, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                ...reasons.map((r) {
+                  final isSelected = currentReason == r;
+                  return InkWell(
+                    onTap: () {
+                      setModalState(() {
+                        currentReason = r;
+                      });
                     },
-                  )),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () => Navigator.pop(ctx),
-                      child: Text(isArabic ? 'رجوع' : 'Dismiss', style: const TextStyle(color: Colors.black87)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () async {
-                        Navigator.pop(ctx);
-                        final api = Provider.of<ApiService>(context, listen: false);
-                        final storage = Provider.of<StorageService>(context, listen: false);
-                        final token = await storage.getToken();
-
-                        if (token != null) {
-                          try {
-                            if (widget.tripData['isTripMode'] == true) {
-                              await api.cancelTripById(rideId, token);
-                            } else {
-                              await api.cancelRide(rideId, selectedReason, token);
-                            }
-                          } catch (e) {
-                            debugPrint('Cancel ride note: $e');
-                          }
-                        }
-
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(isArabic ? 'تم إلغاء الرحلة' : 'Trip cancelled'),
-                              backgroundColor: Colors.red,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                            color: isSelected ? AppColors.primaryOrange : Colors.grey.shade400,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              r,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                color: isSelected ? Colors.black87 : Colors.black54,
+                              ),
                             ),
-                          );
-                          Navigator.pop(context);
-                        }
-                      },
-                      child: Text(
-                        isArabic ? 'تأكيد الإلغاء' : 'Confirm Cancel',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-            ],
+                  );
+                }),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(isArabic ? 'رجوع' : 'Dismiss', style: const TextStyle(color: Colors.black87)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final api = Provider.of<ApiService>(context, listen: false);
+                          final storage = Provider.of<StorageService>(context, listen: false);
+                          final token = await storage.getToken();
+
+                          try {
+                            Provider.of<ActiveRideProvider>(context, listen: false).clearActiveRide();
+                          } catch (_) {}
+
+                          if (token != null) {
+                            try {
+                              if (widget.tripData['isTripMode'] == true) {
+                                await api.cancelTripById(rideId, token);
+                              } else {
+                                await api.cancelRide(rideId, currentReason, token);
+                              }
+                            } catch (e) {
+                              debugPrint('Cancel ride note: $e');
+                            }
+                          }
+
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(isArabic ? 'تم إلغاء الرحلة' : 'Trip cancelled'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            Navigator.pop(context);
+                          }
+                        },
+                        child: Text(
+                          isArabic ? 'تأكيد الإلغاء' : 'Confirm Cancel',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

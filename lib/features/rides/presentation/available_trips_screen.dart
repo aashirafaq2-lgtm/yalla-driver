@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/providers/active_ride_provider.dart';
 import 'trip_ongoing_screen.dart';
 
 class AvailableTripsScreen extends StatefulWidget {
@@ -80,6 +81,13 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
     }
 
     if (!mounted) return;
+
+    // Set globally active ride so Home screen shows active trip banner (Uber-style)
+    try {
+      Provider.of<ActiveRideProvider>(context, listen: false).setActiveRide(trip);
+    } catch (e) {
+      debugPrint('Set active ride note: $e');
+    }
 
     // Navigate to active trip tracking screen (Uber-style)
     Navigator.push(
