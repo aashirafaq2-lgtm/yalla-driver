@@ -9,6 +9,9 @@ import '../../../core/widgets/iq_widgets.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
 
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+
 class SignUpVehicleScreen extends StatefulWidget {
   const SignUpVehicleScreen({super.key});
 
@@ -30,6 +33,8 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
   Uint8List? _carImageBytes;
   Uint8List? _driverFaceBytes;
 
+  final ImagePicker _picker = ImagePicker();
+
   @override
   void dispose() {
     _vehicleNameController.dispose();
@@ -40,33 +45,59 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
   Future<void> _pickFile(int uploadType, Function(void Function()) setDialogState) async {
     // 0: Card ID, 1: Car Image, 2: Driver Face
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
+      Uint8List? bytes;
+      try {
+        final XFile? photo = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+        if (photo != null) {
+          bytes = await photo.readAsBytes();
+        }
+      } catch (e) {
+        debugPrint('ImagePicker error in vehicle screen: $e');
+      }
 
-      if (result != null && result.files.single.bytes != null) {
+      if (bytes == null) {
+        FilePickerResult? result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: false,
+          withData: true,
+        );
+        if (result != null && result.files.isNotEmpty) {
+          if (result.files.single.bytes != null) {
+            bytes = result.files.single.bytes;
+          } else if (result.files.single.path != null) {
+            bytes = await File(result.files.single.path!).readAsBytes();
+          }
+        }
+      }
+
+      if (bytes != null) {
+        final capturedBytes = bytes;
         setDialogState(() {
           if (uploadType == 0) {
-            _cardIdBytes = result.files.single.bytes;
+            _cardIdBytes = capturedBytes;
           } else if (uploadType == 1) {
-            _carImageBytes = result.files.single.bytes;
+            _carImageBytes = capturedBytes;
           } else {
-            _driverFaceBytes = result.files.single.bytes;
+            _driverFaceBytes = capturedBytes;
           }
         });
         setState(() {
           if (uploadType == 0) {
-            _cardIdBytes = result.files.single.bytes;
+            _cardIdBytes = capturedBytes;
           } else if (uploadType == 1) {
-            _carImageBytes = result.files.single.bytes;
+            _carImageBytes = capturedBytes;
           } else {
-            _driverFaceBytes = result.files.single.bytes;
+            _driverFaceBytes = capturedBytes;
           }
         });
       }
     } catch (e) {
       debugPrint('Error picking file: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not pick file: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -156,7 +187,31 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
   }
 
   Future<void> _handleNext(String? phone, String? fullName) async {
-    final cleanPhone = phone ?? '07701234567';
+    if (_vehicleNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter vehicle name')));
+      return;
+    }
+    if (_carNumberController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter car number')));
+      return;
+    }
+    if (!_isCardIdUploaded) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload Card ID')));
+      return;
+    }
+    if (!_isCarImageUploaded) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload Image of car')));
+      return;
+    }
+    if (!_isDriverFaceUploaded) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload Photo for driver face')));
+      return;
+    }
+
+    String rawPhone = (phone ?? '07701234567').trim().replaceAll(RegExp(r'\D'), '');
+    if (rawPhone.startsWith('964')) rawPhone = rawPhone.substring(3);
+    if (rawPhone.startsWith('0')) rawPhone = rawPhone.substring(1);
+    final cleanPhone = '+964$rawPhone';
 
     setState(() => _isLoading = true);
     try {
@@ -168,7 +223,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
         _carNumberController.text.trim(),
       );
 
-      await api.login(cleanPhone);
+      await api.registerDriverAccount(cleanPhone, fullName ?? 'Driver');
       
       if (mounted) {
         Navigator.pushNamed(

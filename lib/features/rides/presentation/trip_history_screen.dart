@@ -90,25 +90,28 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                       itemCount: _trips.length,
                       itemBuilder: (context, index) {
                         final trip = _trips[index];
-                        final price = trip['finalPrice'] ?? trip['estimatedPrice'] ?? 10000;
-                        final pickup = trip['pickupName'] ?? 'Pickup Location';
-                        final drop = trip['dropName'] ?? 'Destination';
+                        final rawPrice = double.tryParse((trip['finalPrice'] ?? trip['estimatedPrice'] ?? 10000).toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 10000.0;
+                        final commission = rawPrice * 0.15; // 15% Yalla App Commission
+                        final netEarning = rawPrice - commission;
+
+                        final pickup = trip['pickupName'] ?? 'Kirkuk City Center';
+                        final drop = trip['dropName'] ?? 'Baghdad Mansour';
                         final status = trip['status'] ?? 'COMPLETED';
 
                         return FadeInUp(
                           delay: Duration(milliseconds: index * 100),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 16),
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: Colors.black.withOpacity(0.08)),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.04),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 5),
                                 ),
                               ],
                             ),
@@ -118,12 +121,18 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      '$price IQD',
-                                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.primaryOrange),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Total Fare', style: TextStyle(fontSize: 11, color: Colors.black45)),
+                                        Text(
+                                          '${rawPrice.toStringAsFixed(0)} IQD',
+                                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.black),
+                                        ),
+                                      ],
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: status == 'COMPLETED' ? Colors.green.withOpacity(0.12) : Colors.amber.withOpacity(0.12),
                                         borderRadius: BorderRadius.circular(8),
@@ -138,6 +147,35 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                       ),
                                     ),
                                   ],
+                                ),
+                                const SizedBox(height: 12),
+                                // ── Commission Breakdown Box ───────────────────
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.black.withOpacity(0.05)),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text('Yalla Commission (15%)', style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                                          Text('- ${commission.toStringAsFixed(0)} IQD', style: const TextStyle(fontSize: 13, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                        ],
+                                      ),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          const Text('Driver Net Earning', style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w600)),
+                                          Text('+ ${netEarning.toStringAsFixed(0)} IQD', style: const TextStyle(fontSize: 14, color: Colors.green, fontWeight: FontWeight.w900)),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                                 const Divider(height: 20),
                                 Row(

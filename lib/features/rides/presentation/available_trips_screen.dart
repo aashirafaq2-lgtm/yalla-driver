@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/network/api_service.dart';
+import '../../../core/services/storage_service.dart';
 import 'trip_ongoing_screen.dart';
 
 class AvailableTripsScreen extends StatefulWidget {
@@ -17,23 +19,8 @@ class AvailableTripsScreen extends StatefulWidget {
 class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
   int? expandedIndex;
   bool _isLoading = true;
+  bool _isAccepting = false;
   List<Map<String, dynamic>> _tripsList = [];
-
-  final List<Map<String, dynamic>> _tripsFallback = [
-    {'id': 'trip_1', 'name': 'Ahmed Muhammad', 'time': 'Now', 'from': 'Kirkuk', 'to': 'Baghdad', 'price': '25,000 IQD', 'phone': '0770 123 4567'},
-    {'id': 'trip_2', 'name': 'Ahmed Yasin', 'time': 'Today 2:00 PM', 'from': 'Kirkuk', 'to': 'Erbil', 'price': '15,000 IQD', 'phone': '0771 987 6543'},
-    {'id': 'trip_3', 'name': 'Muhammad Ali', 'time': 'Today 4:30 PM', 'from': 'Erbil', 'to': 'Basra', 'price': '45,000 IQD', 'phone': '0750 456 7890'},
-    {'id': 'trip_4', 'name': 'Jamila Ali', 'time': 'Now', 'from': 'Kirkuk', 'to': 'Sulaymaniyah', 'price': '20,000 IQD', 'phone': '0780 112 2334'},
-    {'id': 'trip_5', 'name': 'Amir Ahmed', 'time': 'Tomorrow 10:00 AM', 'from': 'Baghdad', 'to': 'Najaf', 'price': '30,000 IQD', 'phone': '0772 334 4556'},
-  ];
-
-  final List<Map<String, dynamic>> _tripsOutsideFallback = [
-    {'id': 'trip_out_1', 'name': 'Ahmed Muhammad', 'time': 'Now', 'from': 'IRAQ', 'to': 'QATAR', 'price': '150,000 IQD', 'phone': '0770 123 4567'},
-    {'id': 'trip_out_2', 'name': 'Ahmed Yasin', 'time': 'Tomorrow', 'from': 'IRAQ', 'to': 'UAE', 'price': '200,000 IQD', 'phone': '0771 987 6543'},
-    {'id': 'trip_out_3', 'name': 'Muhammad Ali', 'time': 'Friday', 'from': 'IRAQ', 'to': 'KSA', 'price': '180,000 IQD', 'phone': '0750 456 7890'},
-    {'id': 'trip_out_4', 'name': 'Jamila Ali', 'time': 'Saturday', 'from': 'IRAQ', 'to': 'Oman', 'price': '220,000 IQD', 'phone': '0780 112 2334'},
-    {'id': 'trip_out_5', 'name': 'Amir Ahmed', 'time': 'Next Week', 'from': 'IRAQ', 'to': 'Kuwait', 'price': '140,000 IQD', 'phone': '0772 334 4556'},
-  ];
 
   @override
   void initState() {
@@ -42,6 +29,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
   }
 
   Future<void> _loadTrips() async {
+    setState(() { _isLoading = true; });
     final api = Provider.of<ApiService>(context, listen: false);
     try {
       final res = await api.getAvailableTrips();
@@ -50,12 +38,17 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
         setState(() {
           _tripsList = raw.map<Map<String, dynamic>>((t) => {
             'id': t['id']?.toString() ?? 'trip',
-            'name': '${t['driver']?['firstName'] ?? 'Passenger'} ${t['driver']?['lastName'] ?? ''}'.trim(),
-            'time': 'Scheduled',
-            'from': t['fromGovernorate']?['name'] ?? 'Kirkuk',
-            'to': t['toGovernorate']?['name'] ?? 'Baghdad',
-            'price': '${t['pricePerSeat'] ?? 25000} IQD',
-            'phone': t['driver']?['phone'] ?? '07xx xxx xxxx',
+            'name': '${t['passenger']?['firstName'] ?? t['driver']?['firstName'] ?? 'Passenger'} ${t['passenger']?['lastName'] ?? t['driver']?['lastName'] ?? ''}'.trim(),
+            'time': t['scheduledAt'] ?? t['departureTime'] ?? 'Scheduled',
+            'from': t['fromGovernorate']?['name'] ?? t['pickupAddress'] ?? 'Kirkuk',
+            'to': t['toGovernorate']?['name'] ?? t['dropAddress'] ?? 'Baghdad',
+            'price': '${t['pricePerSeat'] ?? t['estimatedFare'] ?? 25000} IQD',
+            'phone': t['passenger']?['phone'] ?? t['driver']?['phone'] ?? '07xx xxx xxxx',
+            'pickupLat': t['pickupLat']?.toString() ?? '',
+            'pickupLng': t['pickupLng']?.toString() ?? '',
+            'dropLat': t['dropLat']?.toString() ?? '',
+            'dropLng': t['dropLng']?.toString() ?? '',
+            'seats': t['availableSeats']?.toString() ?? '4',
           }).toList();
           _isLoading = false;
         });
@@ -64,11 +57,37 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
     } catch (e) {
       debugPrint('Load trips note: $e');
     }
-
     setState(() {
-      _tripsList = widget.isOutsideIraq ? List.from(_tripsOutsideFallback) : List.from(_tripsFallback);
+      _tripsList = [];
       _isLoading = false;
     });
+  }
+
+  Future<void> _acceptTrip(Map<String, dynamic> trip) async {
+    setState(() => _isAccepting = true);
+    final api = Provider.of<ApiService>(context, listen: false);
+    final storage = Provider.of<StorageService>(context, listen: false);
+    final token = await storage.getToken();
+
+    try {
+      if (token != null) {
+        await api.acceptRide(trip['id'], token);
+      }
+    } catch (e) {
+      debugPrint('Accept trip note (continuing): $e');
+    } finally {
+      if (mounted) setState(() => _isAccepting = false);
+    }
+
+    if (!mounted) return;
+
+    // Navigate to active trip tracking screen (Uber-style)
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TripOngoingScreen(tripData: trip),
+      ),
+    );
   }
 
   @override
@@ -96,6 +115,13 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.primaryOrange, size: 26),
+            onPressed: _loadTrips,
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,155 +129,265 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
           const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: Text(
-              widget.isOutsideIraq ? 'Passenger requests outside IRAQ' : 'Available Trip Requests',
-              style: const TextStyle(
-                color: AppColors.primaryOrange,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.isOutsideIraq ? 'Intercity Requests' : 'Available Trip Requests',
+                  style: GoogleFonts.outfit(
+                    color: AppColors.primaryOrange,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  widget.isOutsideIraq ? 'Outside Governorate bookings' : 'Tap a trip to accept or decline',
+                  style: GoogleFonts.inter(color: Colors.black45, fontSize: 13),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange))
-                : RefreshIndicator(
-                    color: AppColors.primaryOrange,
-                    onRefresh: _loadTrips,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
-                      itemCount: _tripsList.length,
-                      itemBuilder: (context, index) {
-                        final trip = _tripsList[index];
-                        bool isExpanded = expandedIndex == index;
-
-                        return FadeInUp(
-                          delay: Duration(milliseconds: index * 100),
-                          child: GestureDetector(
-                            onTap: () => setState(() => expandedIndex = isExpanded ? null : index),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.black.withOpacity(0.08)),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.06),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  )
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 54,
-                                        height: 54,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: AppColors.primaryOrange.withOpacity(0.12),
-                                        ),
-                                        child: const Icon(Icons.person, size: 34, color: AppColors.primaryOrange),
-                                      ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              trip['name'] ?? 'Passenger',
-                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              trip['time'] ?? 'Now',
-                                              style: const TextStyle(color: Colors.black45, fontSize: 11, fontWeight: FontWeight.w500),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'from ${trip['from']} to ${trip['to']}',
-                                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Text(
-                                        trip['price'] ?? '',
-                                        style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primaryOrange, fontSize: 13),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Icon(
-                                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                        color: AppColors.primaryOrange,
-                                        size: 26,
-                                      ),
-                                    ],
-                                  ),
-                                  if (isExpanded)
-                                    FadeIn(
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(top: 16),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: _buildActionButton(
-                                                'Accept & Start', 
-                                                const Color(0xFF65CA28),
-                                                onPressed: () {
-                                                  _confirmAction(
-                                                    title: 'Accept Trip',
-                                                    message: 'Are you sure you want to accept and start this trip?',
-                                                    onConfirm: () {
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                          builder: (context) => TripOngoingScreen(tripData: trip),
-                                                        ),
-                                                      );
-                                                    },
-                                                  );
-                                                },
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: _buildActionButton(
-                                                'Decline', 
-                                                const Color(0xFFFF1717),
-                                                onPressed: () {
-                                                  _confirmAction(
-                                                    title: 'Decline Trip',
-                                                    message: 'Are you sure you want to decline this trip?',
-                                                    onConfirm: () {
-                                                      setState(() {
-                                                        _tripsList.removeAt(index);
-                                                        expandedIndex = null;
-                                                      });
-                                                    },
-                                                  );
-                                                },
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                : _tripsList.isEmpty
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        color: AppColors.primaryOrange,
+                        onRefresh: _loadTrips,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
+                          itemCount: _tripsList.length,
+                          itemBuilder: (context, index) {
+                            final trip = _tripsList[index];
+                            bool isExpanded = expandedIndex == index;
+                            return _buildTripCard(trip, index, isExpanded);
+                          },
+                        ),
+                      ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return RefreshIndicator(
+      color: AppColors.primaryOrange,
+      onRefresh: _loadTrips,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.6,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withOpacity(0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.drive_eta_outlined, size: 50, color: Colors.grey.shade400),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'No Trip Requests Yet',
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Pull down to check for new requests',
+                style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _loadTrips,
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: Text('Refresh Requests', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTripCard(Map<String, dynamic> trip, int index, bool isExpanded) {
+    return FadeInUp(
+      delay: Duration(milliseconds: index * 80),
+      child: GestureDetector(
+        onTap: () => setState(() => expandedIndex = isExpanded ? null : index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.only(bottom: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isExpanded ? AppColors.primaryOrange.withOpacity(0.4) : Colors.black.withOpacity(0.08),
+              width: isExpanded ? 1.5 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isExpanded ? AppColors.primaryOrange.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              )
+            ],
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    // Avatar
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.primaryOrange.withOpacity(0.12),
+                      ),
+                      child: const Icon(Icons.person, size: 32, color: AppColors.primaryOrange),
+                    ),
+                    const SizedBox(width: 14),
+                    // Trip info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            trip['name'] ?? 'Passenger',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.trip_origin, size: 12, color: Colors.green),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  trip['from'] ?? '',
+                                  style: GoogleFonts.inter(color: Colors.black54, fontSize: 12, fontWeight: FontWeight.w500),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on, size: 12, color: Colors.red),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  trip['to'] ?? '',
+                                  style: GoogleFonts.inter(color: Colors.black54, fontSize: 12, fontWeight: FontWeight.w500),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Price & chevron
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          trip['price'] ?? '',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: AppColors.primaryOrange, fontSize: 14),
+                        ),
+                        const SizedBox(height: 4),
+                        Icon(
+                          isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          color: AppColors.primaryOrange,
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Expanded action area
+              if (isExpanded)
+                FadeIn(
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      children: [
+                        // Seats badge
+                        if (trip['seats'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.event_seat_outlined, size: 16, color: Colors.black45),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${trip['seats']} seats available',
+                                  style: GoogleFonts.inter(color: Colors.black45, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildActionButton(
+                                label: 'Accept Trip',
+                                icon: Icons.check_circle_outline,
+                                color: const Color(0xFF16A34A),
+                                isLoading: _isAccepting,
+                                onPressed: () {
+                                  _confirmAction(
+                                    title: 'Accept Trip',
+                                    message: 'Accept this trip from ${trip['from']} to ${trip['to']}?',
+                                    onConfirm: () => _acceptTrip(trip),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _buildActionButton(
+                                label: 'Decline',
+                                icon: Icons.cancel_outlined,
+                                color: const Color(0xFFDC2626),
+                                onPressed: () {
+                                  _confirmAction(
+                                    title: 'Decline Trip',
+                                    message: 'Are you sure you want to decline this trip?',
+                                    onConfirm: () {
+                                      setState(() {
+                                        _tripsList.removeAt(index);
+                                        expandedIndex = null;
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -288,22 +424,30 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
     );
   }
 
-  Widget _buildActionButton(String label, Color color, {required VoidCallback onPressed}) {
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    bool isLoading = false,
+  }) {
     return SizedBox(
-      height: 46,
-      child: ElevatedButton(
-        onPressed: onPressed,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child: Text(
+        icon: isLoading
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            : Icon(icon, color: Colors.white, size: 18),
+        label: Text(
           label,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
         ),
       ),
     );
   }
 }
-

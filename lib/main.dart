@@ -28,6 +28,7 @@ import 'features/profile/presentation/card_success_screen.dart';
 import 'features/profile/presentation/language_screen.dart';
 import 'features/profile/presentation/support_screen.dart';
 import 'features/profile/presentation/chat_screen.dart';
+import 'features/rides/presentation/parcel_active_delivery_screen.dart';
 
 import 'core/network/api_service.dart';
 import 'core/services/storage_service.dart';
@@ -146,7 +147,14 @@ class YallaDriverApp extends StatelessWidget {
         '/available_trips_outside': (context) => const AvailableTripsScreen(isOutsideIraq: true),
         '/schedule_trip_info': (context) => const ScheduleTripInfoScreen(),
         '/mail_parcels': (context) => const MailParcelsScreen(),
-        '/parcel_details': (context) => const MailParcelDetailsScreen(),
+        '/parcel_details': (context) {
+          final order = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return MailParcelDetailsScreen(orderData: order);
+        },
+        '/parcel_active': (context) {
+          final order = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ?? {};
+          return ParcelActiveDeliveryScreen(orderData: order);
+        },
         '/ride_active': (context) => const RideActiveScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/profile_edit': (context) => const ProfileEditScreen(),

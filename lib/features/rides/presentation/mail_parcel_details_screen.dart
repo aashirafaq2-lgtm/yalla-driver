@@ -1,9 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../../core/theme/app_colors.dart';
+import 'parcel_active_delivery_screen.dart';
 
 class MailParcelDetailsScreen extends StatelessWidget {
-  const MailParcelDetailsScreen({super.key});
+  final Map<String, dynamic>? orderData;
+  const MailParcelDetailsScreen({super.key, this.orderData});
 
   @override
   Widget build(BuildContext context) {
@@ -94,14 +96,34 @@ class MailParcelDetailsScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _buildActionButton(
+                      context,
                       'Accept',
                       const Color(0xFF65CA28),
-                      () => Navigator.pop(context),
+                      () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ParcelActiveDeliveryScreen(
+                              orderData: orderData ?? {
+                                'id': '#001',
+                                'type': 'Parcel',
+                                'count': '1x Parcel',
+                                'from': 'Kirkuk',
+                                'to': 'Baghdad',
+                                'isMail': false,
+                                'recipientName': 'Ahmed',
+                                'recipientPhone': '07700000000',
+                              },
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 15),
                   Expanded(
                     child: _buildActionButton(
+                      context,
                       'Reject',
                       const Color(0xFFFF1717),
                       () => Navigator.pop(context),
@@ -130,7 +152,7 @@ class MailParcelDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButton(String label, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(BuildContext context, String label, Color color, VoidCallback onTap) {
     return SizedBox(
       height: 54,
       child: ElevatedButton(

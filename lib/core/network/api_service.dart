@@ -25,6 +25,14 @@ class ApiService {
     });
   }
 
+  Future<Response> registerDriverAccount(String phone, String name, {int? age}) async {
+    return await dio.post('/auth/register-driver', data: {
+      'phone': phone,
+      'name': name,
+      if (age != null) 'age': age,
+    });
+  }
+
   Future<Response> verifyOtp(String phone, String otp) async {
     return await dio.post('/auth/verify-otp', data: {'phone': phone, 'otp': otp});
   }
@@ -138,6 +146,26 @@ class ApiService {
   Future<Response> createScheduledTrip(Map<String, dynamic> tripData, String token) async {
     return await dio.post('/trips/create', 
       data: tripData,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> getMyTrips(String token) async {
+    return await dio.get('/trips/my',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> updateTripStatus(String tripId, String status, String token) async {
+    return await dio.patch('/trips/status',
+      data: {'tripId': tripId, 'status': status},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> cancelTripById(String tripId, String token) async {
+    return await dio.patch('/trips/cancel',
+      data: {'tripId': tripId},
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:dio/dio.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/auth_screen_layout.dart';
 import '../../../../core/widgets/iq_widgets.dart';
@@ -28,12 +29,16 @@ class _SignInScreenState extends State<SignInScreen> {
 
   Future<void> _requestOtp() async {
     _dismissKeyboard();
-    final phone = '+964${_phoneController.text.trim()}';
-    if (_phoneController.text.trim().isEmpty) {
+    String raw = _phoneController.text.trim();
+    if (raw.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please enter your phone number')));
       return;
     }
+    raw = raw.replaceAll(RegExp(r'\D'), '');
+    if (raw.startsWith('964')) raw = raw.substring(3);
+    if (raw.startsWith('0')) raw = raw.substring(1);
+    final phone = '+964$raw';
     setState(() => _isLoading = true);
     try {
       final api = Provider.of<ApiService>(context, listen: false);
@@ -44,8 +49,29 @@ class _SignInScreenState extends State<SignInScreen> {
         ));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')));
+      if (mounted) {
+        String msg = 'Failed to request OTP. Please try again.';
+        if (e is DioException) {
+          if (e.response?.statusCode == 403) {
+            msg = 'Driver account not registered yet. Please sign up first!';
+          } else if (e.response?.data != null && e.response?.data['error'] != null) {
+            msg = e.response?.data['error'].toString() ?? msg;
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: Colors.redAccent,
+            action: e is DioException && e.response?.statusCode == 403
+                ? SnackBarAction(
+                    label: 'Sign Up',
+                    textColor: Colors.white,
+                    onPressed: () => Navigator.pushNamed(context, '/signup_personal'),
+                  )
+                : null,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

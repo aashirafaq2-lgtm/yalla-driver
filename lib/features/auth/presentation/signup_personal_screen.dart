@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
+import 'dart:io';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/auth_screen_layout.dart';
 import '../../../core/widgets/iq_widgets.dart';
@@ -18,10 +20,14 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   
+  DateTime? _selectedDOB;
+  int? _calculatedAge;
   String _selectedFrom = 'From';
   String _selectedTo = 'To';
   bool _isDriverLicenseUploaded = false;
-  Uint8List? _webImage;
+  Uint8List? _licenseImageBytes;
+
+  final ImagePicker _picker = ImagePicker();
 
   final List<String> _cities = ['Kirkuk', 'Baghdad', 'Erbil', 'Basra', 'Karbala', 'Najaf', 'Duhok', 'Sulaymaniyah'];
 
@@ -65,23 +71,88 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
     );
   }
 
+  Future<void> _selectDateOfBirth() async {
+    final DateTime now = DateTime.now();
+    final DateTime initialDate = DateTime(now.year - 20, now.month, now.day);
+    final DateTime firstDate = DateTime(1940);
+    final DateTime lastDate = DateTime(now.year - 16, now.month, now.day);
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDOB ?? initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: 'SELECT YOUR DATE OF BIRTH',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primaryOrange,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final today = DateTime.now();
+      int age = today.year - picked.year;
+      if (today.month < picked.month || (today.month == picked.month && today.day < picked.day)) {
+        age--;
+      }
+      setState(() {
+        _selectedDOB = picked;
+        _calculatedAge = age;
+      });
+    }
+  }
+
   Future<void> _pickFile(Function(void Function()) setDialogState) async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
+      Uint8List? bytes;
+      try {
+        final XFile? photo = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+        if (photo != null) {
+          bytes = await photo.readAsBytes();
+        }
+      } catch (e) {
+        debugPrint('ImagePicker error, falling back to FilePicker: $e');
+      }
 
-      if (result != null && result.files.single.bytes != null) {
+      if (bytes == null) {
+        FilePickerResult? result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: false,
+          withData: true,
+        );
+        if (result != null && result.files.isNotEmpty) {
+          if (result.files.single.bytes != null) {
+            bytes = result.files.single.bytes;
+          } else if (result.files.single.path != null) {
+            bytes = await File(result.files.single.path!).readAsBytes();
+          }
+        }
+      }
+
+      if (bytes != null) {
+        final capturedBytes = bytes;
         setDialogState(() {
-          _webImage = result.files.single.bytes;
+          _licenseImageBytes = capturedBytes;
         });
         setState(() {
-          _webImage = result.files.single.bytes;
+          _licenseImageBytes = capturedBytes;
         });
       }
     } catch (e) {
       debugPrint('Error picking file: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not pick image: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -105,14 +176,14 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
                     color: Colors.grey.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(
-                      color: _webImage != null ? const Color(0xFF65CA28) : AppColors.primaryOrange.withOpacity(0.2), 
+                      color: _licenseImageBytes != null ? const Color(0xFF65CA28) : AppColors.primaryOrange.withOpacity(0.2), 
                       width: 2
                     ),
                   ),
-                  child: _webImage != null
+                  child: _licenseImageBytes != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(13),
-                          child: Image.memory(_webImage!, fit: BoxFit.cover),
+                          child: Image.memory(_licenseImageBytes!, fit: BoxFit.cover),
                         )
                       : Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -129,7 +200,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _webImage == null ? null : () {
+                  onPressed: _licenseImageBytes == null ? null : () {
                     setState(() => _isDriverLicenseUploaded = true);
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -159,16 +230,39 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
       bottomButton: IQButton(
         label: 'Next',
         onTap: () {
-          if (_phoneController.text.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter phone number')));
+          if (_nameController.text.trim().isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your full name.')));
             return;
           }
+          if (_selectedDOB == null) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select your Date of Birth.')));
+            return;
+          }
+          if (_phoneController.text.trim().isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your phone number.')));
+            return;
+          }
+          if (_selectedFrom == 'From' || _selectedTo == 'To') {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select your work area (From & To).')));
+            return;
+          }
+          if (!_isDriverLicenseUploaded) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload your driver license before continuing.')));
+            return;
+          }
+          String rawPhone = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+          if (rawPhone.startsWith('964')) rawPhone = rawPhone.substring(3);
+          if (rawPhone.startsWith('0')) rawPhone = rawPhone.substring(1);
+          final formattedPhone = '+964$rawPhone';
+
           Navigator.pushNamed(
             context, 
             '/signup_vehicle',
             arguments: {
-              'phone': _phoneController.text,
+              'phone': formattedPhone,
               'fullName': _nameController.text.trim(),
+              'dob': _selectedDOB?.toIso8601String(),
+              'age': _calculatedAge,
             },
           );
         },
@@ -176,8 +270,76 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
       child: Column(
         children: [
           IQTextField(hintText: 'Full Name', controller: _nameController),
-          const IQTextField(hintText: 'Birthday'),
-          const IQTextField(hintText: 'Age'),
+          
+          // Stylish Date of Birth Picker Field
+          GestureDetector(
+            onTap: _selectDateOfBirth,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 15),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(color: Colors.grey.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_month_rounded, color: AppColors.primaryOrange.withOpacity(0.8), size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _selectedDOB == null
+                          ? 'Select Date of Birth'
+                          : '${_selectedDOB!.day.toString().padLeft(2, '0')} / ${_selectedDOB!.month.toString().padLeft(2, '0')} / ${_selectedDOB!.year}',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: _selectedDOB == null ? FontWeight.normal : FontWeight.bold,
+                        color: _selectedDOB == null ? Colors.grey.withOpacity(0.6) : Colors.black,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: Colors.black54),
+                ],
+              ),
+            ),
+          ),
+
+          // Dynamic Auto-Calculated Age Display
+          Container(
+            margin: const EdgeInsets.only(bottom: 15),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.grey.withOpacity(0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.cake_outlined, color: Colors.grey, size: 22),
+                const SizedBox(width: 12),
+                Text(
+                  'Age: ',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                ),
+                Text(
+                  _calculatedAge != null ? '$_calculatedAge Years Old' : 'Auto-calculated from birthday',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: _calculatedAge != null ? FontWeight.bold : FontWeight.normal,
+                    color: _calculatedAge != null ? AppColors.primaryOrange : Colors.grey.shade400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           IQPhoneInput(controller: _phoneController),
           const SizedBox(height: 18),
           

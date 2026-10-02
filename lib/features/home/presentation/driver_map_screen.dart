@@ -277,6 +277,75 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     setState(() => _pendingRideRequest = null);
 
     if (mounted) {
+      // Yango-style Animated Success Overlay Overlay
+      showGeneralDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black.withOpacity(0.85),
+        transitionDuration: const Duration(milliseconds: 500),
+        pageBuilder: (ctx, anim1, anim2) {
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElasticIn(
+                    duration: const Duration(milliseconds: 1200),
+                    child: Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF65CA28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF65CA28).withOpacity(0.6),
+                            blurRadius: 35,
+                            spreadRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.check_rounded, color: Colors.white, size: 80),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 300),
+                    child: const Text(
+                      'RIDE ACCEPTED!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 500),
+                    child: Text(
+                      'Navigating to Pickup Location...',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Wait 1.8s for Yango animation effect before launching ongoing ride screen
+      await Future.delayed(const Duration(milliseconds: 1800));
+      if (!mounted) return;
+      Navigator.pop(context); // Close animation dialog
+
       Navigator.push(
         context,
         MaterialPageRoute(

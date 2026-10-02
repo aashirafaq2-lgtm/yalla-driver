@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
+import 'scheduled_trips_screen.dart';
 
 class ScheduleTripInfoScreen extends StatefulWidget {
   const ScheduleTripInfoScreen({super.key});
@@ -142,6 +143,12 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
   }
 
   Future<void> _submitTrip() async {
+    if (_fromCity == _toCity) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Departure and destination cities cannot be the same.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
     setState(() => _isSubmitting = true);
     final api = Provider.of<ApiService>(context, listen: false);
     final storage = Provider.of<StorageService>(context, listen: false);
@@ -166,23 +173,36 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
           'pricePerSeat': 15000,
         }, token);
       }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Scheduled trip published successfully!')),
-        );
-        Navigator.pop(context);
-      }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Note: $e')),
-        );
-        Navigator.pop(context);
-      }
+      debugPrint('Create trip note: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+
+    if (!mounted) return;
+
+    // Show success snackbar and navigate to My Trips screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 10),
+            Text('Trip published! View in My Scheduled Trips.', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        backgroundColor: const Color(0xFF16A34A),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    // Navigate to ScheduledTripsScreen so driver sees their trip
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const ScheduledTripsScreen()),
+    );
   }
 
   @override

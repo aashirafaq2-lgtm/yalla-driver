@@ -59,6 +59,14 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       if (!mounted) return;
 
       if (success) {
+        final Map<String, dynamic>? args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        if (args != null && args['vehicleName'] != null) {
+          await authProvider.registerVehicle(
+            carName: args['vehicleName'],
+            seats: args['seats'] ?? 4,
+            carNumber: args['carNumber'] ?? '',
+          );
+        }
         Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

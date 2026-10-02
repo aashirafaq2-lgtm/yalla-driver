@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/iq_header.dart';
 import '../../rides/presentation/available_trips_screen.dart';
@@ -198,7 +198,7 @@ class HomeDashboardContent extends StatelessWidget {
                 _buildMenuCard(
                   context,
                   title: 'Booking',
-                  subtitle: 'outside Iraq',
+                  subtitle: 'outside Governorate',
                   image: 'assets/images/booking.png',
                   route: '/available_trips_outside',
                   isBooking: true,

@@ -31,9 +31,11 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
 
   late LatLng _pickupPos;
   late LatLng _dropPos;
-  LatLng _driverPos = const LatLng(33.3152, 44.3661);
+  // Start with null until we get real GPS; fallback to pickup as visual placeholder
+  LatLng? _driverPos;
   StreamSubscription<Position>? _positionSub;
   bool _isProcessing = false;
+  bool _gpsReady = false;
 
   @override
   void initState() {
@@ -45,12 +47,18 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
 
     _pickupPos = LatLng(pLat, pLng);
     _dropPos = LatLng(dLat, dLng);
-    _driverPos = LatLng(pLat, pLng);
+    // Don't set _driverPos here – wait for real GPS
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _joinRideAndBroadcastLocation();
       _startLiveGpsTracking();
+      _joinRideRoom();
     });
+  }
+
+  void _joinRideRoom() {
+    final socket = Provider.of<SocketService>(context, listen: false);
+    final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
+    socket.joinRide(rideId);
   }
 
   void _startLiveGpsTracking() async {
@@ -59,39 +67,82 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
       }
-      if (perm == LocationPermission.deniedForever) return;
+      if (perm == LocationPermission.deniedForever) {
+        // fallback to pickup location
+        if (mounted) {
+          setState(() {
+            _driverPos = _pickupPos;
+            _gpsReady = true;
+          });
+          _mapController.move(_pickupPos, 14.5);
+        }
+        return;
+      }
 
+      // Get immediate position first (no waiting for stream)
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        ).timeout(const Duration(seconds: 6));
+        if (mounted) {
+          final realPos = LatLng(pos.latitude, pos.longitude);
+          setState(() {
+            _driverPos = realPos;
+            _gpsReady = true;
+          });
+          _mapController.move(realPos, 14.5);
+          _broadcastLocation(pos);
+        }
+      } catch (_) {
+        // If immediate position fails, fallback to pickup temporarily
+        if (mounted) {
+          setState(() {
+            _driverPos = _pickupPos;
+            _gpsReady = true;
+          });
+        }
+      }
+
+      // Then subscribe to live updates
       _positionSub = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 8),
       ).listen((pos) {
         if (!mounted) return;
+        final realPos = LatLng(pos.latitude, pos.longitude);
         setState(() {
-          _driverPos = LatLng(pos.latitude, pos.longitude);
+          _driverPos = realPos;
+          _gpsReady = true;
         });
-        final socket = Provider.of<SocketService>(context, listen: false);
-        final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
-        socket.updateLocation(
-          pos.latitude,
-          pos.longitude,
-          activeRideId: rideId,
-          heading: pos.heading,
-          speed: pos.speed,
-        );
+        // Auto follow driver on map
+        _mapController.move(realPos, _mapController.camera.zoom);
+        _broadcastLocation(pos);
       });
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _driverPos = _pickupPos;
+          _gpsReady = true;
+        });
+      }
+    }
+  }
+
+  void _broadcastLocation(Position pos) {
+    final socket = Provider.of<SocketService>(context, listen: false);
+    final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
+    socket.updateLocation(
+      pos.latitude,
+      pos.longitude,
+      activeRideId: rideId,
+      heading: pos.heading,
+      speed: pos.speed,
+    );
   }
 
   @override
   void dispose() {
     _positionSub?.cancel();
     super.dispose();
-  }
-
-  void _joinRideAndBroadcastLocation() {
-    final socket = Provider.of<SocketService>(context, listen: false);
-    final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
-    socket.joinRide(rideId);
-    socket.updateLocation(_driverPos.latitude, _driverPos.longitude, activeRideId: rideId);
   }
 
   String _getStepButtonLabel(bool isArabic) {
@@ -118,13 +169,67 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
     final token = await storage.getToken();
 
     final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
+    final currentDriverPos = _driverPos ?? _pickupPos;
 
     try {
       if (_step == RideProgressStep.drivingToPickup) {
-        // Driver marks arrived
+        // Only warn if GPS is confirmed real and far away
+        if (_gpsReady) {
+          double distanceInMeters = Geolocator.distanceBetween(
+            currentDriverPos.latitude,
+            currentDriverPos.longitude,
+            _pickupPos.latitude,
+            _pickupPos.longitude,
+          );
+
+          if (distanceInMeters > 500) {
+            final isArabic = Provider.of<DriverLocaleProvider>(context, listen: false).isArabic;
+            final distKm = (distanceInMeters / 1000).toStringAsFixed(1);
+
+            bool? proceed = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                title: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                    const SizedBox(width: 8),
+                    Flexible(child: Text(isArabic ? 'تنبيه الموقع' : 'Distance Alert', style: const TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                ),
+                content: Text(
+                  isArabic
+                      ? 'أنت حالياً بعيد عن موقع الراكب بمقدار ($distKm كم). هل تريد الاستمرار؟'
+                      : 'You are currently $distKm km from the passenger pickup location. Confirm arrival anyway?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(isArabic ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.grey)),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(isArabic ? 'تأكيد الوصول' : 'Confirm Arrival'),
+                  ),
+                ],
+              ),
+            );
+
+            if (proceed != true) {
+              setState(() => _isProcessing = false);
+              return;
+            }
+          }
+        }
+
         socket.changeStatus(rideId: rideId, status: 'ARRIVED');
         if (token != null) {
-          await api.updateRideStatus(rideId, 'ARRIVED', token);
+          if (widget.tripData['isTripMode'] == true) {
+            await api.updateTripStatus(rideId, 'ARRIVED', token);
+          } else {
+            await api.updateRideStatus(rideId, 'ARRIVED', token);
+          }
         }
         setState(() {
           _step = RideProgressStep.arrivedAtPickup;
@@ -132,10 +237,8 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
         });
       } else if (_step == RideProgressStep.arrivedAtPickup) {
         setState(() => _isProcessing = false);
-        // Prompt for 4-digit PIN OTP
         _showOtpVerificationDialog(rideId);
       } else if (_step == RideProgressStep.inProgress) {
-        // Driver finishes trip
         final priceStr = widget.tripData['price']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '10000';
         final finalPrice = double.tryParse(priceStr) ?? 10000.0;
 
@@ -146,7 +249,11 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
         );
 
         if (token != null) {
-          await api.updateRideStatus(rideId, 'COMPLETED', token, finalPrice: finalPrice);
+          if (widget.tripData['isTripMode'] == true) {
+            await api.updateTripStatus(rideId, 'COMPLETED', token);
+          } else {
+            await api.updateRideStatus(rideId, 'COMPLETED', token, finalPrice: finalPrice);
+          }
         }
 
         await auth.loadProfile();
@@ -182,9 +289,11 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
             children: [
               const Icon(Icons.pin_outlined, color: AppColors.primaryOrange, size: 28),
               const SizedBox(width: 8),
-              Text(
-                isArabic ? 'تأكيد رمز أمان الراكب' : 'Verify Passenger PIN',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+              Flexible(
+                child: Text(
+                  isArabic ? 'تأكيد رمز أمان الراكب' : 'Verify Passenger PIN',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
               ),
             ],
           ),
@@ -243,7 +352,11 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
 
                 try {
                   if (token != null) {
-                    await api.verifyOtpForRide(rideId, otp, token);
+                    if (widget.tripData['isTripMode'] == true) {
+                      await api.updateTripStatus(rideId, 'IN_PROGRESS', token);
+                    } else {
+                      await api.verifyOtpForRide(rideId, otp, token);
+                    }
                   }
                   socket.changeStatus(rideId: rideId, status: 'PICKED_UP');
 
@@ -367,7 +480,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                 ),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  Navigator.pop(context); // Return to home/map
+                  Navigator.pop(context);
                 },
                 child: Text(
                   isArabic ? 'العودة للرئيسية' : 'Back to Dashboard',
@@ -464,13 +577,23 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
 
                         if (token != null) {
                           try {
-                            await api.cancelRide(rideId, selectedReason, token);
+                            if (widget.tripData['isTripMode'] == true) {
+                              await api.cancelTripById(rideId, token);
+                            } else {
+                              await api.cancelRide(rideId, selectedReason, token);
+                            }
                           } catch (e) {
                             debugPrint('Cancel ride note: $e');
                           }
                         }
 
                         if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(isArabic ? 'تم إلغاء الرحلة' : 'Trip cancelled'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
                           Navigator.pop(context);
                         }
                       },
@@ -537,6 +660,19 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
     );
   }
 
+  Color _getStepColor() {
+    switch (_step) {
+      case RideProgressStep.drivingToPickup:
+        return AppColors.primaryOrange;
+      case RideProgressStep.arrivedAtPickup:
+        return const Color(0xFF1E3A5F);
+      case RideProgressStep.inProgress:
+        return const Color(0xFF16A34A);
+      case RideProgressStep.completed:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final locale = Provider.of<DriverLocaleProvider>(context);
@@ -548,6 +684,8 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
     final price = widget.tripData['price'] ?? '10,000 IQD';
     final phone = widget.tripData['phone'] ?? '07700000000';
     final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
+
+    final currentPos = _driverPos ?? _pickupPos;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -574,7 +712,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 24),
+            icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 26),
             tooltip: isArabic ? 'إلغاء الرحلة' : 'Cancel Trip',
             onPressed: () => _showDriverCancelDialog(rideId),
           ),
@@ -586,7 +724,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _driverPos,
+              initialCenter: currentPos,
               initialZoom: 14.5,
               interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
             ),
@@ -598,7 +736,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
               PolylineLayer(
                 polylines: [
                   Polyline(
-                    points: [_driverPos, _pickupPos, _dropPos],
+                    points: [currentPos, _pickupPos, _dropPos],
                     color: AppColors.primaryOrange,
                     strokeWidth: 4,
                   ),
@@ -606,14 +744,16 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
               ),
               MarkerLayer(
                 markers: [
+                  // Pickup marker (green)
                   Marker(
                     point: _pickupPos,
                     width: 36,
                     height: 36,
                     child: _buildPin(Icons.trip_origin, Colors.green),
                   ),
+                  // Driver marker (orange car)
                   Marker(
-                    point: _driverPos,
+                    point: currentPos,
                     width: 50,
                     height: 50,
                     child: Container(
@@ -626,6 +766,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                       child: const Icon(Icons.directions_car, color: Colors.white, size: 24),
                     ),
                   ),
+                  // Drop marker (red)
                   Marker(
                     point: _dropPos,
                     width: 36,
@@ -635,6 +776,71 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                 ],
               ),
             ],
+          ),
+
+          // GPS loading indicator
+          if (!_gpsReady)
+            Positioned(
+              top: 12,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                      const SizedBox(width: 8),
+                      Text(isArabic ? 'جارٍ تحديد موقعك...' : 'Getting your location...', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Step status banner at top
+          Positioned(
+            top: _gpsReady ? 12 : 50,
+            left: 16,
+            right: 16,
+            child: FadeInDown(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _getStepColor(),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 3))],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _step == RideProgressStep.drivingToPickup ? Icons.navigation :
+                      _step == RideProgressStep.arrivedAtPickup ? Icons.location_on :
+                      _step == RideProgressStep.inProgress ? Icons.directions_car : Icons.check_circle,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _step == RideProgressStep.drivingToPickup
+                          ? (isArabic ? '🚗 في الطريق إلى الراكب' : '🚗 Driving to passenger')
+                          : _step == RideProgressStep.arrivedAtPickup
+                              ? (isArabic ? '📍 وصلت — في انتظار الراكب' : '📍 Arrived — Waiting for passenger')
+                              : _step == RideProgressStep.inProgress
+                                  ? (isArabic ? '🟢 الرحلة جارية' : '🟢 Trip in progress')
+                                  : (isArabic ? '✅ اكتملت الرحلة' : '✅ Trip completed'),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
 
           // Trip Details Bottom Card
@@ -735,9 +941,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                             child: ElevatedButton(
                               onPressed: (_step == RideProgressStep.completed || _isProcessing) ? null : _handleStepAction,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: _step == RideProgressStep.inProgress
-                                    ? Colors.green
-                                    : (_step == RideProgressStep.arrivedAtPickup ? AppColors.primaryDark : AppColors.primaryOrange),
+                                backgroundColor: _getStepColor(),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                 elevation: 3,
                               ),
@@ -759,15 +963,9 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: IconButton(
-                            icon: const Icon(Icons.navigation, color: Colors.white, size: 26),
+                            icon: const Icon(Icons.my_location, color: Colors.white, size: 22),
                             onPressed: () {
-                              _mapController.move(_driverPos, 15.0);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(isArabic ? 'تمت المحاذاة مع مسار الملاحة' : 'Centered on navigation route'),
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
+                              _mapController.move(currentPos, 15.0);
                             },
                           ),
                         ),
