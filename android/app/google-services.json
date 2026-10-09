@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "82498798353",
+    "project_id": "yalla-d074c",
+    "storage_bucket": "yalla-d074c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:82498798353:android:df8093997a1c34f06902b0",
+        "android_client_info": {
+          "package_name": "com.almassar.iq_massar_driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASRRoY0CKb-fSH1gPdWNfPT3WSgZ1ZiWo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

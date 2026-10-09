@@ -34,5 +34,3 @@ node_modules/
 *.jks
 *.keystore
 .env
-google-services.json
-GoogleService-Info.plist
