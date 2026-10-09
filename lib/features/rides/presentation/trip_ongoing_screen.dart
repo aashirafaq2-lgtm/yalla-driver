@@ -45,16 +45,48 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
   bool _gpsReady = false;
   List<LatLng> _routePoints = [];
 
+  LatLng _resolveGovCoords(String? name, LatLng fallback) {
+    if (name == null || name.trim().isEmpty) return fallback;
+    final lower = name.toLowerCase().trim();
+    if (lower.contains('kirkuk') || lower.contains('كركوك')) return const LatLng(35.4681, 44.3922);
+    if (lower.contains('baghdad') || lower.contains('بغداد')) return const LatLng(33.3152, 44.3661);
+    if (lower.contains('erbil') || lower.contains('أربيل') || lower.contains('اربيل')) return const LatLng(36.1901, 44.0091);
+    if (lower.contains('basra') || lower.contains('البصرة') || lower.contains('بصرة')) return const LatLng(30.5081, 47.7835);
+    if (lower.contains('sulaymaniyah') || lower.contains('السليمانية')) return const LatLng(35.5558, 45.4351);
+    if (lower.contains('najaf') || lower.contains('النجف')) return const LatLng(32.0259, 44.3462);
+    if (lower.contains('karbala') || lower.contains('كربلاء')) return const LatLng(32.6160, 44.0249);
+    if (lower.contains('hillah') || lower.contains('babel') || lower.contains('بابل') || lower.contains('الحلة')) return const LatLng(32.4820, 44.4348);
+    if (lower.contains('anbar') || lower.contains('الانبار') || lower.contains('الأنبار') || lower.contains('ramadi')) return const LatLng(33.4233, 43.3013);
+    if (lower.contains('nineveh') || lower.contains('mosul') || lower.contains('الموصل') || lower.contains('نينوى')) return const LatLng(36.3400, 43.1300);
+    if (lower.contains('diyala') || lower.contains('ديالى') || lower.contains('baqubah')) return const LatLng(33.7489, 45.1467);
+    if (lower.contains('wasit') || lower.contains('واسط') || lower.contains('kut')) return const LatLng(32.5081, 45.8236);
+    if (lower.contains('maysan') || lower.contains('ميسان') || lower.contains('amara')) return const LatLng(31.8398, 47.1448);
+    if (lower.contains('dhi qar') || lower.contains('ذي قار') || lower.contains('nasiriyah')) return const LatLng(31.0580, 46.2573);
+    if (lower.contains('muthanna') || lower.contains('المثنى') || lower.contains('samawah')) return const LatLng(31.3195, 45.2813);
+    if (lower.contains('qadisiyyah') || lower.contains('القادسية') || lower.contains('diwaniyah')) return const LatLng(31.9890, 44.9234);
+    if (lower.contains('saladin') || lower.contains('صلاح الدين') || lower.contains('tikrit')) return const LatLng(34.6045, 43.6793);
+    if (lower.contains('dohuk') || lower.contains('دهوك')) return const LatLng(36.8679, 42.9885);
+    return fallback;
+  }
+
   @override
   void initState() {
     super.initState();
-    final pLat = double.tryParse(widget.tripData['pickupLat']?.toString() ?? '') ?? 33.3152;
-    final pLng = double.tryParse(widget.tripData['pickupLng']?.toString() ?? '') ?? 44.3661;
-    final dLat = double.tryParse(widget.tripData['dropLat']?.toString() ?? '') ?? 33.3000;
-    final dLng = double.tryParse(widget.tripData['dropLng']?.toString() ?? '') ?? 44.3800;
+    final pLat = double.tryParse(widget.tripData['pickupLat']?.toString() ?? '') ?? 0.0;
+    final pLng = double.tryParse(widget.tripData['pickupLng']?.toString() ?? '') ?? 0.0;
+    final dLat = double.tryParse(widget.tripData['dropLat']?.toString() ?? '') ?? 0.0;
+    final dLng = double.tryParse(widget.tripData['dropLng']?.toString() ?? '') ?? 0.0;
 
-    _pickupPos = LatLng(pLat, pLng);
-    _dropPos = LatLng(dLat, dLng);
+    final fromName = widget.tripData['from']?.toString() ?? widget.tripData['pickupName']?.toString();
+    final toName = widget.tripData['to']?.toString() ?? widget.tripData['dropName']?.toString();
+
+    _pickupPos = (pLat != 0.0 && pLng != 0.0)
+        ? LatLng(pLat, pLng)
+        : _resolveGovCoords(fromName, const LatLng(35.4681, 44.3922));
+
+    _dropPos = (dLat != 0.0 && dLng != 0.0)
+        ? LatLng(dLat, dLng)
+        : _resolveGovCoords(toName, const LatLng(33.3152, 44.3661));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startLiveGpsTracking();
