@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
+import 'package:dio/dio.dart';
 import 'scheduled_trips_screen.dart';
 
 class ScheduleTripInfoScreen extends StatefulWidget {
@@ -18,8 +19,10 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
   String _fromCity = 'Kirkuk';
   String _toCity = 'Baghdad';
   final List<String> _iraqiCities = [
-    'Kirkuk', 'Baghdad', 'Erbil', 'Basra', 'Sulaymaniyah', 
-    'Najaf', 'Karbala', 'Mosul', 'Duhok', 'Anbar', 'Babil'
+    'Baghdad', 'Kirkuk', 'Erbil', 'Basra', 'Sulaymaniyah',
+    'Najaf', 'Karbala', 'Mosul', 'Dohuk', 'Anbar', 'Babel',
+    'Wasit', 'Maysan', 'Dhi Qar', 'Muthanna', 'Qadisiyyah',
+    'Saladin', 'Diyala', 'Nineveh'
   ];
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _selectedTime = const TimeOfDay(hour: 14, minute: 0);
@@ -27,6 +30,8 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
   String _availabilityStatus = 'All seats are available';
   final List<String> _statusOptions = ['All seats are available', 'Need passengers'];
   bool _isSubmitting = false;
+  final TextEditingController _priceController = TextEditingController(text: '15000');
+  final TextEditingController _notesController = TextEditingController();
 
   String _formatDate(DateTime dt) {
     final now = DateTime.now();
@@ -142,6 +147,13 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _priceController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
   Future<void> _submitTrip() async {
     if (_fromCity == _toCity) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -149,10 +161,27 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
       );
       return;
     }
+
+    final priceInput = int.tryParse(_priceController.text.trim().replaceAll(RegExp(r'[^0-9]'), ''));
+    if (priceInput == null || priceInput < 5000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid price (minimum 5,000 IQD).'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
     final api = Provider.of<ApiService>(context, listen: false);
     final storage = Provider.of<StorageService>(context, listen: false);
     final token = await storage.getToken();
+
+    if (token == null) {
+      if (mounted) setState(() => _isSubmitting = false);
+      return;
+    }
 
     final combinedDeparture = DateTime(
       _selectedDate.year,
@@ -162,26 +191,47 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
       _selectedTime.minute,
     );
 
+    bool success = false;
+    String errorMsg = '';
     try {
-      if (token != null) {
-        await api.createScheduledTrip({
-          'fromGovernorate': _fromCity,
-          'toGovernorate': _toCity,
-          'departureTime': combinedDeparture.toIso8601String(),
-          'availableSeats': _availabilityStatus == 'Need passengers' ? _seatsAvailable : 4,
-          'totalSeats': 4,
-          'pricePerSeat': 15000,
-        }, token);
+      final res = await api.createScheduledTrip({
+        'fromGovernorate': _fromCity,
+        'toGovernorate': _toCity,
+        'departureTime': combinedDeparture.toIso8601String(),
+        'availableSeats': _seatsAvailable,
+        'totalSeats': _seatsAvailable,
+        'pricePerSeat': priceInput,
+        if (_notesController.text.trim().isNotEmpty) 'notes': _notesController.text.trim(),
+      }, token);
+      if ((res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300) {
+        success = true;
+      } else {
+        errorMsg = res.data?['error'] ?? 'Failed to create trip';
       }
+    } on DioException catch (e) {
+      debugPrint('Create trip DioError: $e');
+      errorMsg = e.response?.data?['error'] ?? 'Connection error. Please try again.';
     } catch (e) {
-      debugPrint('Create trip note: $e');
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      debugPrint('Create trip error: $e');
+      errorMsg = 'Unexpected error occurred.';
     }
 
+    if (mounted) setState(() => _isSubmitting = false);
     if (!mounted) return;
 
-    // Show success snackbar and navigate to My Trips screen
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg.isNotEmpty ? errorMsg : 'Failed to publish trip'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return; // ❌ Don't navigate on error
+    }
+
+    // ✅ Only show success + navigate when API succeeded
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
@@ -198,7 +248,6 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
       ),
     );
 
-    // Navigate to ScheduledTripsScreen so driver sees their trip
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const ScheduledTripsScreen()),
@@ -306,7 +355,68 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
+
+            // ── Price Per Seat Input ──────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.black12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.monetization_on_outlined, color: AppColors.primaryOrange, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _priceController,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: 'Price per seat (IQD)',
+                        hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
+                      ),
+                    ),
+                  ),
+                  const Text('IQD', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Notes / Description ───────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.black12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))
+                ],
+              ),
+              child: TextField(
+                controller: _notesController,
+                maxLines: 2,
+                style: const TextStyle(fontSize: 14),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'Trip notes (optional) — e.g. luggage allowed, AC, stops...',
+                  hintStyle: TextStyle(color: Colors.black38, fontSize: 13),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
 
             // ── Availability Dropdown / Selection ────────────────────
             Container(

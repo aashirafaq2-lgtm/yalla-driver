@@ -17,15 +17,39 @@ class AvailableTripsScreen extends StatefulWidget {
   State<AvailableTripsScreen> createState() => _AvailableTripsScreenState();
 }
 
-class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
+class _AvailableTripsScreenState extends State<AvailableTripsScreen> with RouteAware {
   int? expandedIndex;
   bool _isLoading = true;
   bool _isAccepting = false;
   List<Map<String, dynamic>> _tripsList = [];
 
+  static final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
+
   @override
   void initState() {
     super.initState();
+    _loadTrips();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Subscribe to route observer so we get notified when screen is revisited
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  // Called when coming back to this screen from a pushed route
+  @override
+  void didPopNext() {
     _loadTrips();
   }
 

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/providers/driver_locale_provider.dart';
 
 class DriverEarningsScreen extends StatefulWidget {
   const DriverEarningsScreen({super.key});
@@ -55,6 +56,9 @@ class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<DriverLocaleProvider>(context);
+    final isArabic = locale.isArabic;
+
     final total = _earnings?['totalEarnings'] ?? _earnings?['walletBalance'] ?? _earnings?['total'] ?? 0;
     final trips = _earnings?['tripCount'] ?? _earnings?['totalTrips'] ?? 0;
 
@@ -64,74 +68,124 @@ class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.primaryOrange, size: 32),
+          icon: Icon(
+            isArabic ? Icons.chevron_right : Icons.chevron_left,
+            color: AppColors.primaryOrange,
+            size: 32,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Driver Earnings', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          isArabic ? 'أرباح الكابتن' : 'Driver Earnings',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            fontFamily: isArabic ? 'NotoKufiArabic' : null,
+          ),
+        ),
         centerTitle: true,
       ),
-      body: _isLoading 
+      body: _isLoading
         ? const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange))
         : RefreshIndicator(
             color: AppColors.primaryOrange,
             onRefresh: _fetchEarnings,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  FadeInDown(
-                    child: Container(
-                      padding: const EdgeInsets.all(28),
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primaryOrange, Color(0xFFFF9E40)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(color: AppColors.primaryOrange.withOpacity(0.35), blurRadius: 15, offset: const Offset(0, 8)),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          const Text('WALLET BALANCE', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                          const SizedBox(height: 8),
-                          Text('$total IQD', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text('$trips Completed Trips', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+            child: Directionality(
+              textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    FadeInDown(
+                      child: Container(
+                        padding: const EdgeInsets.all(28),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primaryOrange, Color(0xFFFF9E40)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                        ],
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.primaryOrange.withOpacity(0.35), blurRadius: 15, offset: const Offset(0, 8)),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              isArabic ? 'رصيد المحفظة' : 'WALLET BALANCE',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: isArabic ? 0 : 1.5,
+                                fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '$total IQD',
+                              style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                isArabic ? '$trips رحلة مكتملة' : '$trips Completed Trips',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  Expanded(
-                    child: FadeInUp(
-                      child: ListView(
-                        children: [
-                          _buildEarningCard('Today\'s Revenue', '$total IQD', Icons.today),
-                          _buildEarningCard('This Week', '$total IQD', Icons.calendar_view_week),
-                          _buildEarningCard('This Month', '$total IQD', Icons.calendar_month),
-                        ],
+                    const SizedBox(height: 24),
+                    Expanded(
+                      child: FadeInUp(
+                        child: ListView(
+                          children: [
+                            _buildEarningCard(
+                              isArabic ? 'إيرادات اليوم' : "Today's Revenue",
+                              '$total IQD',
+                              Icons.today,
+                              isArabic,
+                            ),
+                            _buildEarningCard(
+                              isArabic ? 'هذا الأسبوع' : 'This Week',
+                              '$total IQD',
+                              Icons.calendar_view_week,
+                              isArabic,
+                            ),
+                            _buildEarningCard(
+                              isArabic ? 'هذا الشهر' : 'This Month',
+                              '$total IQD',
+                              Icons.calendar_month,
+                              isArabic,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
     );
   }
 
-  Widget _buildEarningCard(String title, String value, IconData icon) {
+  Widget _buildEarningCard(String title, String value, IconData icon, bool isArabic) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(18),
@@ -147,16 +201,29 @@ class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.primaryOrange.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: AppColors.primaryOrange.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Icon(icon, color: AppColors.primaryOrange),
           ),
           const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 13,
+                  fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                value,
+                style: const TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
         ],
@@ -164,4 +231,3 @@ class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
     );
   }
 }
-

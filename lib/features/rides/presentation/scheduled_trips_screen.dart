@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/driver_locale_provider.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
+import 'trip_passengers_screen.dart';
 
 class ScheduledTripsScreen extends StatefulWidget {
   const ScheduledTripsScreen({super.key});
@@ -383,17 +384,44 @@ class _ScheduledTripsScreenState extends State<ScheduledTripsScreen> {
                                   child: Row(
                                     children: [
                                       Expanded(
+                                        child: ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppColors.primaryOrange.withOpacity(0.1),
+                                            foregroundColor: AppColors.primaryOrange,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                            padding: const EdgeInsets.symmetric(vertical: 11),
+                                          ),
+                                          onPressed: () {
+                                            Navigator.push(context, MaterialPageRoute(
+                                              builder: (_) => TripPassengersScreen(
+                                                tripId: tripId,
+                                                tripFrom: trip['from'] as String,
+                                                tripTo: trip['to'] as String,
+                                                tripDate: trip['date'] as String,
+                                              ),
+                                            ));
+                                          },
+                                          icon: const Icon(Icons.people_outline, size: 16),
+                                          label: Text(
+                                            isArabic ? 'عرض الركاب' : 'View Passengers',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
                                         child: OutlinedButton.icon(
                                           style: OutlinedButton.styleFrom(
                                             side: const BorderSide(color: Colors.red),
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            padding: const EdgeInsets.symmetric(vertical: 11),
                                           ),
                                           onPressed: () => _showCancelConfirm(tripId, index, isArabic),
-                                          icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 18),
+                                          icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 16),
                                           label: Text(
                                             isArabic ? 'إلغاء' : 'Cancel',
-                                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
                                           ),
                                         ),
                                       ),

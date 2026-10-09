@@ -29,6 +29,8 @@ import 'features/profile/presentation/language_screen.dart';
 import 'features/profile/presentation/support_screen.dart';
 import 'features/profile/presentation/chat_screen.dart';
 import 'features/rides/presentation/parcel_active_delivery_screen.dart';
+import 'features/auth/presentation/verification_pending_screen.dart';
+import 'features/rides/presentation/scheduled_trips_screen.dart';
 
 import 'core/network/api_service.dart';
 import 'core/services/storage_service.dart';
@@ -53,19 +55,6 @@ void main() async {
     debugPrint('Background service init error (non-fatal): $e');
   }
 
-  // Initialize Local Notifications safely
-  try {
-    await NotificationService.initialize();
-    DeferredLinkService.resolveOnStartup();
-  } catch (e) {
-    debugPrint('Notification init error (non-fatal): $e');
-  }
-
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
-  ));
-
   final apiService = ApiService();
   final storageService = StorageService();
   final socketService = SocketService(storageService);
@@ -73,6 +62,15 @@ void main() async {
   final driverLocaleProvider = DriverLocaleProvider();
   final activeRideProvider = ActiveRideProvider();
   authProvider.setSocketService(socketService);
+
+  // Initialize Local Notifications and Firebase FCM safely
+  try {
+    await NotificationService.initialize(apiService, storageService);
+    DeferredLinkService.resolveOnStartup();
+  } catch (e) {
+    debugPrint('Notification init error (non-fatal): $e');
+  }
+
 
   // Initialize socket connection
   socketService.connect();
@@ -144,6 +142,10 @@ class YallaDriverApp extends StatelessWidget {
           final Map<String, dynamic>? args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
           return OTPVerificationScreen(phone: args?['phone']);
         },
+        '/verification_pending': (context) {
+          final Map<String, dynamic>? args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return VerificationPendingScreen(phone: args?['phone']);
+        },
         '/success': (context) => const SuccessScreen(),
         '/home': (context) => const DriverHomeScreen(),
         '/available_trips': (context) => const AvailableTripsScreen(),
@@ -167,6 +169,7 @@ class YallaDriverApp extends StatelessWidget {
         '/card_success': (context) => const CardSuccessScreen(),
         '/trips': (context) => const TripHistoryScreen(),
         '/schedule': (context) => const ScheduleTripInfoScreen(),
+        '/my_trips': (context) => const ScheduledTripsScreen(),
         '/language': (context) => const LanguageScreen(),
         '/support': (context) => const SupportScreen(),
         '/chat': (context) => const ChatScreen(),

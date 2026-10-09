@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../network/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/socket_service.dart';
+import '../services/background_service.dart';
+import '../services/notification_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _apiService;
@@ -9,7 +11,7 @@ class AuthProvider extends ChangeNotifier {
   SocketService? _socketService;
 
   bool _isLoading = false;
-  bool _isOnline = true;
+  bool _isOnline = false;
   Map<String, dynamic>? _userProfile;
   double _walletBalance = 0.0;
   int _totalTrips = 0;
@@ -46,7 +48,12 @@ class AuthProvider extends ChangeNotifier {
       final response = await _apiService.getProfile(token);
       if (response.statusCode == 200) {
         _userProfile = response.data['user'];
-        _isOnline = _userProfile?['isOnline'] ?? true;
+        _isOnline = _userProfile?['isOnline'] == true;
+        if (_isOnline) {
+          BackgroundServiceInstance.startService();
+        } else {
+          BackgroundServiceInstance.stopService();
+        }
         _walletBalance = (_userProfile?['walletBalance'] as num?)?.toDouble() ?? 0.0;
         _totalTrips = (_userProfile?['totalTrips'] as num?)?.toInt() ?? 0;
         _rating = (_userProfile?['rating'] as num?)?.toDouble() ?? 5.0;
@@ -74,9 +81,15 @@ class AuthProvider extends ChangeNotifier {
         final name = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
         
         await _storageService.saveAuth(token, userId, name: name, phone: phone);
+        await NotificationService.syncDeviceToken(_apiService, token);
         _userProfile = user;
-        _isOnline = user['isOnline'] ?? true;
-        
+        _isOnline = user['isOnline'] == true;
+        if (_isOnline) {
+          BackgroundServiceInstance.startService();
+        } else {
+          BackgroundServiceInstance.stopService();
+        }
+
         if (_socketService != null) {
           _socketService!.connect();
           _socketService!.authenticate(userId);
@@ -94,6 +107,7 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
+
   Future<void> toggleStatus() async {
     final token = await _storageService.getToken();
     if (token == null) return;
@@ -107,6 +121,13 @@ class AuthProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         _isOnline = newStatus;
         _socketService?.toggleDriverStatus(newStatus);
+        
+        // Start/Stop background service based on status
+        if (newStatus) {
+          BackgroundServiceInstance.startService();
+        } else {
+          BackgroundServiceInstance.stopService();
+        }
       }
     } catch (e) {
       debugPrint('Status Toggle Error: $e');

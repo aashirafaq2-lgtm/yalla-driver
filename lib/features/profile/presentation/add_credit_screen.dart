@@ -1,6 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/providers/driver_locale_provider.dart';
 
 class AddCreditScreen extends StatefulWidget {
   const AddCreditScreen({super.key});
@@ -14,22 +16,36 @@ class _AddCreditScreenState extends State<AddCreditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<DriverLocaleProvider>(context);
+    final isArabic = locale.isArabic;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.primaryOrange, size: 32),
+          icon: Icon(
+            isArabic ? Icons.chevron_right : Icons.chevron_left,
+            color: AppColors.primaryOrange,
+            size: 32,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
-        title: const Text(
-          'Add Credit',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+        title: Text(
+          isArabic ? 'إضافة رصيد' : 'Add Credit',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            fontFamily: isArabic ? 'NotoKufiArabic' : null,
+          ),
         ),
       ),
-      body: Padding(
+      body: Directionality(
+        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+        child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           children: [
@@ -141,6 +157,7 @@ class _AddCreditScreenState extends State<AddCreditScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

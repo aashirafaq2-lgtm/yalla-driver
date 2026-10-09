@@ -4,7 +4,7 @@ class ApiService {
   final Dio dio = Dio(
     BaseOptions(
       baseUrl: 'https://api-yalla.aaaj.shop/api',
-      connectTimeout: const Duration(seconds: 10),
+      connectTimeout: const Duration(seconds: 20), validateStatus: (status) => true,
       receiveTimeout: const Duration(seconds: 10),
       headers: {
         'Content-Type': 'application/json',
@@ -16,6 +16,10 @@ class ApiService {
   ApiService() {
     dio.interceptors.add(LogInterceptor(responseBody: true, requestBody: true));
   }
+
+  /// Helper: returns Options with Bearer token header
+  Options authOptions(String token) =>
+      Options(headers: {'Authorization': 'Bearer $token'});
 
   // Auth
   Future<Response> login(String phone) async {
@@ -41,6 +45,28 @@ class ApiService {
   Future<Response> registerDriver(Map<String, dynamic> data, String token) async {
     return await dio.post('/driver/register',
       data: data,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> submitDriverDocuments({
+    required String cardIdImage,
+    required String carImage,
+    required String driverFaceImage,
+    required String token,
+  }) async {
+    return await dio.post('/driver/documents',
+      data: {
+        'cardIdImage': cardIdImage,
+        'carImage': carImage,
+        'driverFaceImage': driverFaceImage,
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> getDriverVerificationStatus(String token) async {
+    return await dio.get('/driver/verification-status',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }
@@ -121,6 +147,37 @@ class ApiService {
     );
   }
 
+  Future<Response> getActiveRide(String token) async {
+    return await dio.get('/ride/active',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> getRide(String rideId, String token) async {
+    return await dio.get('/ride/$rideId',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> getRideRequest(String rideId, String token) async {
+    return await dio.get('/ride/requests/$rideId',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> getParcelRequest(String parcelId, String token) async {
+    return await dio.get('/parcels/requests/$parcelId',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  Future<Response> acceptParcel(String parcelId, String token) async {
+    return await dio.patch('/parcels/accept',
+      data: {'parcelId': parcelId},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
   Future<Response> getChatMessages(String rideId, String token) async {
     return await dio.get('/chat/$rideId',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
@@ -170,13 +227,19 @@ class ApiService {
     );
   }
 
+  Future<Response> getTripBookings(String tripId, String token) async {
+    return await dio.get('/bookings/trip/$tripId',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
   Future<Response> getGovernorates() async {
     return await dio.get('/trips/governorates');
   }
 
   Future<Response> updateFcmToken(String fcmToken, String token) async {
-    return await dio.patch('/user/fcm-token', 
-      data: {'fcmToken': fcmToken},
+    return await dio.patch('/user/device-token', 
+      data: {'deviceToken': fcmToken},
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }

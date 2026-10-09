@@ -126,23 +126,13 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   Future<void> _acceptRide(dynamic data) async {
     final api     = Provider.of<ApiService>(context, listen: false);
     final storage = Provider.of<StorageService>(context, listen: false);
-    final socket  = Provider.of<SocketService>(context, listen: false);
     final token   = await storage.getToken();
-    final driverName = await storage.getDriverName() ?? 'Driver';
-    final carModel   = await storage.getCarModel() ?? 'Car';
-    final plate      = await storage.getLicensePlate() ?? '---';
+    if (token == null) return;
 
     try {
-      final response = await api.acceptRide(data['id'], token!);
+      final response = await api.acceptRide(data['id'], token);
       if (response.statusCode == 200) {
         final acceptedRide = response.data['ride'];
-        socket.socket?.emit('accept_ride', {
-          'rideId': acceptedRide['id'],
-          'passengerId': acceptedRide['passengerId'],
-          'driverName': driverName,
-          'carModel': carModel,
-          'plate': plate,
-        });
 
         Navigator.pop(context);
         Navigator.push(context, MaterialPageRoute(

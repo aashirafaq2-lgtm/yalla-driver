@@ -2,13 +2,19 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/iq_header.dart';
 import '../../../../core/providers/active_ride_provider.dart';
+import '../../../../core/providers/auth_provider.dart';
+import '../../../../core/providers/driver_locale_provider.dart';
 import '../../rides/presentation/available_trips_screen.dart';
+import '../../rides/presentation/scheduled_trips_screen.dart';
 import '../../rides/presentation/trip_ongoing_screen.dart';
 import '../../profile/presentation/profile_screen.dart';
 import 'driver_map_screen.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+
+import '../../../../core/network/api_service.dart';
+import '../../../../core/services/storage_service.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -27,7 +33,55 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _checkActiveRide();
+  }
+
+  Future<void> _checkActiveRide() async {
+    try {
+      await Provider.of<AuthProvider>(context, listen: false).loadProfile();
+      final storage = Provider.of<StorageService>(context, listen: false);
+      final api = Provider.of<ApiService>(context, listen: false);
+      final activeRideProv = Provider.of<ActiveRideProvider>(context, listen: false);
+
+      final token = await storage.getToken();
+      if (token == null) return;
+
+      final res = await api.getActiveRide(token);
+      if (res.statusCode == 200 && res.data != null && res.data['activeRide'] != null) {
+        final r = res.data['activeRide'];
+        final p = r['passenger'] ?? {};
+        activeRideProv.setActiveRide({
+          'id': r['id'],
+          'rideId': r['id'],
+          'name': '${p['firstName'] ?? ''} ${p['lastName'] ?? ''}'.trim().isNotEmpty
+              ? '${p['firstName'] ?? ''} ${p['lastName'] ?? ''}'.trim()
+              : 'Passenger',
+          'phone': p['phone'] ?? '',
+          'rating': p['rating']?.toString() ?? '5.0',
+          'from': r['pickupName'] ?? 'Pickup Location',
+          'to': r['dropName'] ?? 'Destination',
+          'price': '${r['estimatedPrice'] ?? r['finalPrice'] ?? 10000} IQD',
+          'status': r['status'] ?? 'ACCEPTED',
+          'pickupLat': r['pickupLat'],
+          'pickupLng': r['pickupLng'],
+          'dropLat': r['dropLat'],
+          'dropLng': r['dropLng'],
+          'otp': r['otp'] ?? '',
+          'isTripMode': false,
+        });
+      }
+    } catch (e) {
+      debugPrint('[Home] Note checking active ride: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<DriverLocaleProvider>(context);
+    final isArabic = locale.isArabic;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: IndexedStack(
@@ -46,16 +100,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildNavItem(0, Icons.home_filled, 'Home'),
-            _buildNavItem(1, Icons.directions_car_rounded, 'Rides'),
-            _buildNavItem(2, Icons.person, 'Profile'),
+            _buildNavItem(0, Icons.home_filled, locale.tr('home'), isArabic),
+            _buildNavItem(1, Icons.directions_car_rounded, locale.tr('rides'), isArabic),
+            _buildNavItem(2, Icons.person, locale.tr('profile'), isArabic),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(int index, IconData icon, String label, bool isArabic) {
     bool isSelected = _selectedIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
@@ -79,8 +133,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               Text(
                 label,
                 style: TextStyle(
+                  fontFamily: isArabic ? 'NotoKufiArabic' : null,
                   color: isSelected ? Colors.white : Colors.black87,
-                  fontSize: 15,
+                  fontSize: isArabic ? 13 : 15,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -97,28 +152,78 @@ class HomeDashboardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<DriverLocaleProvider>(context);
+    final isArabic = locale.isArabic;
+
     return SafeArea(
       child: Column(
         children: [
           const SizedBox(height: 15),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: ElasticIn(
-              duration: const Duration(milliseconds: 1000),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Yalla',
-                    style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SizedBox(width: 48), // Balance for language button
+                ElasticIn(
+                  duration: const Duration(milliseconds: 1000),
+                  child: Row(
+                    children: [
+                      Text(
+                        isArabic ? 'يَلَّا ' : 'Yalla ',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: isArabic ? AppColors.primaryOrange : Colors.black,
+                          fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                        ),
+                        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                      ),
+                      Text(
+                        isArabic ? 'YALLA' : 'يَلَّا',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: isArabic ? Colors.black : AppColors.primaryOrange,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 15),
-                  Text(
-                    'يَلَّا',
-                    style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                ),
+                // Language Dropdown Pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.black12),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2)),
+                    ],
                   ),
-                ],
-              ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: isArabic ? 'ar' : 'en',
+                      isDense: true,
+                      icon: const Icon(Icons.language, size: 16, color: AppColors.primaryOrange),
+                      borderRadius: BorderRadius.circular(12),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'ar',
+                          child: Text('العربية', style: GoogleFonts.notoKufiArabic(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'en',
+                          child: Text('English', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                      onChanged: (lang) {
+                        if (lang != null) locale.setLocale(Locale(lang));
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 15),
@@ -152,9 +257,15 @@ class HomeDashboardContent extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Text(
-                        'YOU ARE ONLINE',
-                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.black87, letterSpacing: 0.5),
+                      Text(
+                        locale.tr('you_are_online'),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: isArabic ? 14 : 13,
+                          color: Colors.black87,
+                          letterSpacing: isArabic ? 0 : 0.5,
+                          fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                        ),
                       ),
                     ],
                   ),
@@ -164,9 +275,14 @@ class HomeDashboardContent extends StatelessWidget {
                       color: AppColors.primaryOrange.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Text(
-                      'Ready for rides',
-                      style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 12),
+                    child: Text(
+                      locale.tr('ready_for_rides'),
+                      style: TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: isArabic ? 12 : 12,
+                        fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                      ),
                     ),
                   ),
                 ],
@@ -178,21 +294,21 @@ class HomeDashboardContent extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
               children: [
-                // Uber-style Active Ride Banner
+                // Active Ride Banner
                 Consumer<ActiveRideProvider>(
                   builder: (context, rideProv, child) {
                     final ride = rideProv.activeRide;
                     if (ride == null) return const SizedBox.shrink();
 
-                    final passengerName = ride['name'] ?? 'Passenger';
-                    final from = ride['from'] ?? 'Pickup';
-                    final to = ride['to'] ?? 'Destination';
+                    final passengerName = ride['name'] ?? (isArabic ? 'الراكب' : 'Passenger');
+                    final from = ride['from'] ?? (isArabic ? 'نقطة الانطلاق' : 'Pickup');
+                    final to = ride['to'] ?? (isArabic ? 'الوجهة' : 'Destination');
                     final price = ride['price'] ?? '10,000 IQD';
                     final status = ride['status'] ?? 'ACCEPTED';
 
-                    String statusText = 'Driving to passenger';
-                    if (status == 'ARRIVED') statusText = 'Arrived at pickup';
-                    if (status == 'IN_PROGRESS' || status == 'PICKED_UP') statusText = 'Trip in progress';
+                    String statusText = locale.tr('driving_to_passenger');
+                    if (status == 'ARRIVED') statusText = locale.tr('arrived_at_pickup');
+                    if (status == 'IN_PROGRESS' || status == 'PICKED_UP') statusText = locale.tr('trip_in_progress');
 
                     return FadeInDown(
                       duration: const Duration(milliseconds: 400),
@@ -216,7 +332,7 @@ class HomeDashboardContent extends StatelessWidget {
                           border: Border.all(color: AppColors.primaryOrange, width: 1.5),
                         ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -230,22 +346,18 @@ class HomeDashboardContent extends StatelessWidget {
                                         color: AppColors.primaryOrange,
                                         shape: BoxShape.circle,
                                         boxShadow: [
-                                          BoxShadow(
-                                            color: AppColors.primaryOrange,
-                                            blurRadius: 6,
-                                            spreadRadius: 2,
-                                          ),
+                                          BoxShadow(color: AppColors.primaryOrange, blurRadius: 6, spreadRadius: 2),
                                         ],
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      'ACTIVE RIDE',
+                                      locale.tr('active_ride'),
                                       style: GoogleFonts.outfit(
                                         color: AppColors.primaryOrange,
                                         fontWeight: FontWeight.w900,
                                         fontSize: 13,
-                                        letterSpacing: 1.2,
+                                        letterSpacing: isArabic ? 0 : 1.2,
                                       ),
                                     ),
                                   ],
@@ -258,10 +370,11 @@ class HomeDashboardContent extends StatelessWidget {
                                   ),
                                   child: Text(
                                     statusText,
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
+                                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
                                     ),
                                   ),
                                 ),
@@ -278,7 +391,7 @@ class HomeDashboardContent extends StatelessWidget {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         passengerName,
@@ -293,10 +406,12 @@ class HomeDashboardContent extends StatelessWidget {
                                         '$from → $to',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.inter(
+                                        style: TextStyle(
                                           color: Colors.white70,
                                           fontSize: 12,
+                                          fontFamily: isArabic ? 'NotoKufiArabic' : null,
                                         ),
+                                        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                                       ),
                                     ],
                                   ),
@@ -323,11 +438,12 @@ class HomeDashboardContent extends StatelessWidget {
                                 ),
                                 icon: const Icon(Icons.navigation_rounded, color: Colors.white, size: 20),
                                 label: Text(
-                                  'Return to Active Ride / العودة للرحلة',
-                                  style: GoogleFonts.outfit(
+                                  locale.tr('return_to_ride'),
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
+                                    fontFamily: isArabic ? 'NotoKufiArabic' : null,
                                   ),
                                 ),
                                 onPressed: () {
@@ -348,33 +464,37 @@ class HomeDashboardContent extends StatelessWidget {
                 ),
                 _buildMenuCard(
                   context,
-                  title: 'Available Trips',
+                  title: locale.tr('available_trips'),
                   image: 'assets/images/available_trip.png',
                   route: '/available_trips',
                   delay: 0,
+                  isArabic: isArabic,
                 ),
                 _buildMenuCard(
                   context,
-                  title: 'Schedule trip',
+                  title: locale.tr('schedule_trip'),
                   image: 'assets/images/schedule_trip.png',
                   route: '/schedule',
                   delay: 100,
+                  isArabic: isArabic,
                 ),
                 _buildMenuCard(
                   context,
-                  title: 'mail or Parcels',
+                  title: locale.tr('mail_parcel'),
                   image: 'assets/images/mail_parcel.png',
                   route: '/mail_parcels',
                   delay: 200,
+                  isArabic: isArabic,
                 ),
                 _buildMenuCard(
                   context,
-                  title: 'Booking',
-                  subtitle: 'outside Governorate',
+                  title: locale.tr('booking'),
+                  subtitle: locale.tr('outside_governorate'),
                   image: 'assets/images/booking.png',
                   route: '/available_trips_outside',
                   isBooking: true,
                   delay: 300,
+                  isArabic: isArabic,
                 ),
               ],
             ),
@@ -391,6 +511,7 @@ class HomeDashboardContent extends StatelessWidget {
     required String route,
     bool isBooking = false,
     int delay = 0,
+    bool isArabic = false,
   }) {
     return FadeInUp(
       delay: Duration(milliseconds: delay),
@@ -415,7 +536,7 @@ class HomeDashboardContent extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 Image.asset(
-                  image, 
+                  image,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Container(
                     color: Colors.grey.shade200,
@@ -435,23 +556,33 @@ class HomeDashboardContent extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 if (isBooking)
                   Positioned(
                     top: 0,
-                    left: 0,
+                    left: isArabic ? null : 0,
+                    right: isArabic ? 0 : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: AppColors.primaryOrange,
-                        borderRadius: BorderRadius.only(bottomRight: Radius.circular(20)),
+                        borderRadius: BorderRadius.only(
+                          bottomRight: isArabic ? Radius.zero : const Radius.circular(20),
+                          bottomLeft: isArabic ? const Radius.circular(20) : Radius.zero,
+                        ),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Booking',
-                            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+                          Text(
+                            title,
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                            ),
+                            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                           ),
                           Row(
                             children: [
@@ -459,7 +590,12 @@ class HomeDashboardContent extends StatelessWidget {
                               const SizedBox(width: 4),
                               Text(
                                 subtitle!,
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                                ),
                               ),
                             ],
                           ),
@@ -467,19 +603,22 @@ class HomeDashboardContent extends StatelessWidget {
                       ),
                     ),
                   ),
-                
+
                 if (!isBooking)
                   Center(
                     child: Text(
                       title,
-                      style: const TextStyle(
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        shadows: [
+                        fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                        shadows: const [
                           Shadow(color: Colors.black87, blurRadius: 15, offset: Offset(0, 2)),
                         ],
                       ),
+                      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                     ),
                   ),
               ],

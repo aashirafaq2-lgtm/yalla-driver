@@ -4,6 +4,8 @@ import 'package:animate_do/animate_do.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/network/api_service.dart';
+import '../../../core/services/storage_service.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String? phone;
@@ -60,14 +62,52 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
       if (success) {
         final Map<String, dynamic>? args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        final api = Provider.of<ApiService>(context, listen: false);
+        final storage = Provider.of<StorageService>(context, listen: false);
+        final token = await storage.getToken();
+
+        bool hasSubmittedDocuments = false;
+
         if (args != null && args['vehicleName'] != null) {
           await authProvider.registerVehicle(
             carName: args['vehicleName'],
             seats: args['seats'] ?? 4,
             carNumber: args['carNumber'] ?? '',
           );
+
+          // Upload all 3 documents to backend
+          if (token != null && args['cardIdBase64'] != null) {
+            try {
+              await api.submitDriverDocuments(
+                cardIdImage: args['cardIdBase64'] ?? '',
+                carImage: args['carImageBase64'] ?? '',
+                driverFaceImage: args['driverFaceBase64'] ?? '',
+                token: token,
+              );
+              hasSubmittedDocuments = true;
+            } catch (e) {
+              debugPrint('Document upload note: $e');
+            }
+          }
         }
-        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+
+        // Check if driver is verified or pending
+        final userProfile = authProvider.userProfile;
+        final isVerified = userProfile?['isVerified'] == true;
+
+        if (mounted) {
+          if (!isVerified || hasSubmittedDocuments) {
+            // Uber-style: Redirect to 24 to 48 Hours Approval Screen
+            Navigator.pushNamedAndRemoveUntil(
+              context, 
+              '/verification_pending', 
+              (route) => false,
+              arguments: {'phone': _phone},
+            );
+          } else {
+            Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+          }
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Invalid verification code. Please try again.')),

@@ -12,6 +12,7 @@ class PaymentMethodScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
     final locale = Provider.of<DriverLocaleProvider>(context);
+    final isArabic = locale.isArabic;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -19,16 +20,27 @@ class PaymentMethodScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.primaryOrange, size: 32),
+          icon: Icon(
+            isArabic ? Icons.chevron_right : Icons.chevron_left,
+            color: AppColors.primaryOrange,
+            size: 32,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
         title: Text(
           locale.tr('payment_method'),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            fontFamily: isArabic ? 'NotoKufiArabic' : null,
+          ),
         ),
       ),
-      body: SingleChildScrollView(
+      body: Directionality(
+        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,10 +150,21 @@ class PaymentMethodScreen extends StatelessWidget {
                   ),
                   title: Text(
                     locale.tr('yalla_card'),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                    ),
                   ),
-                  subtitle: const Text('Redeem official voucher code', style: TextStyle(fontSize: 12, color: Colors.black45)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.black45),
+                  subtitle: Text(
+                    isArabic ? 'استبدال رمز القسيمة الرسمية' : 'Redeem official voucher code',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.black45,
+                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                    ),
+                  ),
+                  trailing: Icon(isArabic ? Icons.chevron_left : Icons.chevron_right, color: Colors.black45),
                 ),
               ),
             ),
@@ -168,10 +191,21 @@ class PaymentMethodScreen extends StatelessWidget {
                   ),
                   title: Text(
                     locale.tr('zain_cash'),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                    ),
                   ),
-                  subtitle: const Text('Instant mobile wallet topup', style: TextStyle(fontSize: 12, color: Colors.black45)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.black45),
+                  subtitle: Text(
+                    isArabic ? 'شحن فوري عبر المحفظة الرقمية' : 'Instant mobile wallet topup',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.black45,
+                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                    ),
+                  ),
+                  trailing: Icon(isArabic ? Icons.chevron_left : Icons.chevron_right, color: Colors.black45),
                 ),
               ),
             ),
@@ -197,16 +231,28 @@ class PaymentMethodScreen extends StatelessWidget {
                   ),
                   title: Text(
                     locale.tr('asia_hawala'),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                    ),
                   ),
-                  subtitle: const Text('Fast agent deposit', style: TextStyle(fontSize: 12, color: Colors.black45)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.black45),
+                  subtitle: Text(
+                    isArabic ? 'إيداع سريع عبر الوكيل' : 'Fast agent deposit',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.black45,
+                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                    ),
+                  ),
+                  trailing: Icon(isArabic ? Icons.chevron_left : Icons.chevron_right, color: Colors.black45),
                 ),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

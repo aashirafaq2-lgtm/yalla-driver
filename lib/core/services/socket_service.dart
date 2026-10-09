@@ -6,22 +6,29 @@ class SocketService {
   IO.Socket? _socket;
   final StorageService _storageService;
   bool _isConnected = false;
+  String? _currentRideId;
 
   SocketService(this._storageService);
 
   IO.Socket? get socket => _socket;
   bool get isConnected => _isConnected;
 
-  // Callbacks
+  // ── Callbacks ──────────────────────────────────────────────────────
   Function(dynamic)? onRideAccepted;
   Function(dynamic)? onDriverMoved;
   Function(dynamic)? onNewRideRequest;
+  Function(dynamic)? onNewParcelRequest;
   Function(dynamic)? onRideStatusUpdate;
   Function(dynamic)? onNewMessage;
   Function(dynamic)? onNotification;
+  Function(dynamic)? onRideCancelled;
+  Function(dynamic)? onNewTripBooking;
 
   void connect() async {
-    if (_socket != null && _socket!.connected) return;
+    if (_socket != null) {
+      if (!_socket!.connected) _socket!.connect();
+      return;
+    }
 
     final token = await _storageService.getToken();
     final userId = await _storageService.getUserId();
@@ -33,6 +40,9 @@ class SocketService {
           .setAuth({'token': token ?? ''})
           .enableAutoConnect()
           .enableReconnection()
+          .setReconnectionAttempts(double.maxFinite.toInt())
+          .setReconnectionDelay(1000)
+          .setReconnectionDelayMax(5000)
           .build(),
     );
 
@@ -41,24 +51,35 @@ class SocketService {
     _socket!.onConnect((_) {
       _isConnected = true;
       debugPrint('[Socket] Connected to server');
-      
+      if (userId != null && userId.isNotEmpty) {
+        authenticate(userId);
+      }
+    });
+
+    _socket!.onReconnect((_) {
+      debugPrint('[Socket] Reconnected');
       if (userId != null && userId.isNotEmpty) {
         authenticate(userId);
       }
     });
 
     _socket!.on('new_ride_request', (data) {
-      debugPrint('[Socket] Received new_ride_request: $data');
+      debugPrint('[Socket] new_ride_request: $data');
       onNewRideRequest?.call(data);
     });
 
+    _socket!.on('new_parcel_request', (data) {
+      debugPrint('[Socket] new_parcel_request: $data');
+      onNewParcelRequest?.call(data);
+    });
+
     _socket!.on('ride_accepted', (data) {
-      debugPrint('[Socket] Received ride_accepted: $data');
+      debugPrint('[Socket] ride_accepted: $data');
       onRideAccepted?.call(data);
     });
 
     _socket!.on('ride_status_update', (data) {
-      debugPrint('[Socket] Received ride_status_update: $data');
+      debugPrint('[Socket] ride_status_update: $data');
       onRideStatusUpdate?.call(data);
     });
 
@@ -71,8 +92,26 @@ class SocketService {
     });
 
     _socket!.on('notification', (data) {
-      debugPrint('[Socket] Notification received: $data');
+      debugPrint('[Socket] notification: $data');
       onNotification?.call(data);
+      // Also route RIDE_CANCELLED from notification wrapper
+      if (data is Map) {
+        final payload = data['data'] ?? data;
+        final type = payload['type'] ?? data['type'];
+        if (type == 'RIDE_CANCELLED') {
+          onRideCancelled?.call(payload);
+        }
+      }
+    });
+
+    _socket!.on('ride_cancelled', (data) {
+      debugPrint('[Socket] ride_cancelled: $data');
+      onRideCancelled?.call(data);
+    });
+
+    _socket!.on('new_trip_booking', (data) {
+      debugPrint('[Socket] new_trip_booking: $data');
+      onNewTripBooking?.call(data);
     });
 
     _socket!.onDisconnect((_) {
@@ -85,19 +124,19 @@ class SocketService {
 
   void authenticate(String userId) {
     if (_socket != null && _socket!.connected) {
-      _socket!.emit('authenticate', {
-        'userId': userId,
-        'role': 'DRIVER',
-      });
-      debugPrint('[Socket] Authenticated as DRIVER with userId: $userId');
+      if (_currentRideId != null) {
+        joinRide(_currentRideId!);
+      }
     }
   }
 
   void joinRide(String rideId) {
+    _currentRideId = rideId;
     _socket?.emit('join_ride', {'rideId': rideId});
   }
 
-  void updateLocation(double lat, double lng, {String? activeRideId, double? heading, double? speed}) async {
+  void updateLocation(double lat, double lng,
+      {String? activeRideId, double? heading, double? speed}) async {
     final userId = await _storageService.getUserId();
     _socket?.emit('update_location', {
       'driverId': userId,
@@ -115,6 +154,7 @@ class SocketService {
     required String driverName,
     required String carModel,
     required String plate,
+    String? passengerId,
   }) async {
     final userId = await _storageService.getUserId();
     _socket?.emit('accept_ride', {
@@ -123,10 +163,14 @@ class SocketService {
       'driverName': driverName,
       'carModel': carModel,
       'plate': plate,
+      if (passengerId != null && passengerId.isNotEmpty) 'passengerId': passengerId,
     });
   }
 
-  void changeStatus({required String rideId, required String status, Map<String, dynamic>? payload}) {
+  void changeStatus(
+      {required String rideId,
+      required String status,
+      Map<String, dynamic>? payload}) {
     _socket?.emit('status_change', {
       'rideId': rideId,
       'status': status,
@@ -152,8 +196,8 @@ class SocketService {
   }
 
   void disconnect() {
+    _currentRideId = null;
     _socket?.disconnect();
     _isConnected = false;
   }
 }
-

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -6,6 +6,7 @@ import '../../../../core/widgets/auth_screen_layout.dart';
 import '../../../../core/widgets/iq_widgets.dart';
 import 'package:provider/provider.dart';
 import '../../../core/network/api_service.dart';
+import '../../../core/providers/driver_locale_provider.dart';
 import 'otp_screen.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -27,12 +28,15 @@ class _SignInScreenState extends State<SignInScreen> {
 
   void _dismissKeyboard() => FocusScope.of(context).unfocus();
 
-  Future<void> _requestOtp() async {
+  Future<void> _requestOtp(bool isArabic) async {
     _dismissKeyboard();
     String raw = _phoneController.text.trim();
     if (raw.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter your phone number')));
+          SnackBar(
+              content: Text(isArabic
+                  ? 'يرجى إدخال رقم الهاتف'
+                  : 'Please enter your phone number')));
       return;
     }
     raw = raw.replaceAll(RegExp(r'\D'), '');
@@ -50,11 +54,16 @@ class _SignInScreenState extends State<SignInScreen> {
       }
     } catch (e) {
       if (mounted) {
-        String msg = 'Failed to request OTP. Please try again.';
+        String msg = isArabic
+            ? 'فشل إرسال الرمز. يرجى المحاولة مجدداً.'
+            : 'Failed to request OTP. Please try again.';
         if (e is DioException) {
           if (e.response?.statusCode == 403) {
-            msg = 'Driver account not registered yet. Please sign up first!';
-          } else if (e.response?.data != null && e.response?.data['error'] != null) {
+            msg = isArabic
+                ? 'حسابك غير مسجل. يرجى إنشاء حساب أولاً!'
+                : 'Driver account not registered yet. Please sign up first!';
+          } else if (e.response?.data != null &&
+              e.response?.data['error'] != null) {
             msg = e.response?.data['error'].toString() ?? msg;
           }
         }
@@ -64,9 +73,10 @@ class _SignInScreenState extends State<SignInScreen> {
             backgroundColor: Colors.redAccent,
             action: e is DioException && e.response?.statusCode == 403
                 ? SnackBarAction(
-                    label: 'Sign Up',
+                    label: isArabic ? 'إنشاء حساب' : 'Sign Up',
                     textColor: Colors.white,
-                    onPressed: () => Navigator.pushNamed(context, '/signup_personal'),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/signup_personal'),
                   )
                 : null,
           ),
@@ -79,15 +89,18 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<DriverLocaleProvider>(context);
+    final isArabic = locale.isArabic;
+
     return GestureDetector(
       onTap: _dismissKeyboard,
       behavior: HitTestBehavior.opaque,
       child: AuthScreenLayout(
-        title: 'Sign in',
+        title: locale.tr('sign_in'),
         onBack: () => Navigator.pop(context),
         bottomButton: IQButton(
-          label: _isLoading ? 'Loading...' : 'Next',
-          onTap: _isLoading ? () {} : _requestOtp,
+          label: _isLoading ? locale.tr('loading') : locale.tr('next'),
+          onTap: _isLoading ? () {} : () => _requestOtp(isArabic),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,18 +108,20 @@ class _SignInScreenState extends State<SignInScreen> {
             const SizedBox(height: 40),
             IQPhoneInput(controller: _phoneController),
             const SizedBox(height: 16),
-            // Keyboard dismiss hint
             GestureDetector(
               onTap: _dismissKeyboard,
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.keyboard_hide_rounded,
+                  const Icon(Icons.keyboard_hide_rounded,
                       size: 17, color: Colors.black38),
-                  SizedBox(width: 5),
+                  const SizedBox(width: 5),
                   Text(
-                    'Tap anywhere to hide keyboard',
-                    style: TextStyle(fontSize: 12, color: Colors.black38),
+                    isArabic
+                        ? 'اضغط في أي مكان لإخفاء لوحة المفاتيح'
+                        : 'Tap anywhere to hide keyboard',
+                    style:
+                        const TextStyle(fontSize: 12, color: Colors.black38),
                   ),
                 ],
               ),
@@ -115,19 +130,23 @@ class _SignInScreenState extends State<SignInScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text("Don't have account? ",
-                    style: TextStyle(
-                        color: Colors.black54,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500)),
+                Text(
+                  isArabic ? 'ليس لديك حساب؟ ' : "Don't have account? ",
+                  style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500),
+                ),
                 GestureDetector(
                   onTap: () =>
                       Navigator.pushNamed(context, '/signup_personal'),
-                  child: const Text('Sign up',
-                      style: TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 15)),
+                  child: Text(
+                    isArabic ? 'سجّل الآن' : 'Sign up',
+                    style: const TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15),
+                  ),
                 ),
               ],
             ),

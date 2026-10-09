@@ -14,7 +14,12 @@ import '../../../core/services/storage_service.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/driver_locale_provider.dart';
 import '../../../core/providers/active_ride_provider.dart';
+import '../../../core/services/sound_service.dart';
+import '../../../core/services/background_service.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../../profile/presentation/chat_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:dio/dio.dart';
 
 enum RideProgressStep { drivingToPickup, arrivedAtPickup, inProgress, completed }
 
@@ -35,8 +40,10 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
   // Start with null until we get real GPS; fallback to pickup as visual placeholder
   LatLng? _driverPos;
   StreamSubscription<Position>? _positionSub;
+  StreamSubscription<Map<String, dynamic>?>? _bgLocationSub;
   bool _isProcessing = false;
   bool _gpsReady = false;
+  List<LatLng> _routePoints = [];
 
   @override
   void initState() {
@@ -48,18 +55,144 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
 
     _pickupPos = LatLng(pLat, pLng);
     _dropPos = LatLng(dLat, dLng);
-    // Don't set _driverPos here – wait for real GPS
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startLiveGpsTracking();
       _joinRideRoom();
+      _fetchRoadRoute();
     });
   }
+
+  List<LatLng> _decodePolyline(String encoded) {
+    List<LatLng> points = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+      points.add(LatLng(lat / 1E5, lng / 1E5));
+    }
+    return points;
+  }
+
+  Future<void> _fetchRoadRoute() async {
+    final start = _driverPos ?? _pickupPos;
+    final dest = (_step == RideProgressStep.inProgress) ? _dropPos : _pickupPos;
+
+    try {
+      final dio = Dio();
+      final url = 'https://api-yalla.aaaj.shop/api/map/directions?originLat=${start.latitude}&originLng=${start.longitude}&destLat=${dest.latitude}&destLng=${dest.longitude}';
+      final res = await dio.get(url, options: Options(receiveTimeout: const Duration(seconds: 4)));
+      if (res.statusCode == 200 && res.data != null && res.data['route'] != null) {
+        final ptsStr = res.data['route']['points'] ?? '';
+        if (ptsStr.isNotEmpty) {
+          final decoded = _decodePolyline(ptsStr);
+          if (decoded.isNotEmpty && mounted) {
+            setState(() {
+              _routePoints = decoded;
+            });
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[Route] Note fetching server directions: $e');
+    }
+
+    // Direct fallback if offline
+    if (mounted) {
+      setState(() {
+        _routePoints = [start, dest];
+      });
+    }
+  }
+
+  Future<void> _openExternalNavigation() async {
+    final target = (_step == RideProgressStep.inProgress) ? _dropPos : _pickupPos;
+    final navUri = Uri.parse('google.navigation:q=${target.latitude},${target.longitude}&mode=d');
+    final webUri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${target.latitude},${target.longitude}');
+
+    try {
+      if (await canLaunchUrl(navUri)) {
+        await launchUrl(navUri, mode: LaunchMode.externalApplication);
+      } else if (await canLaunchUrl(webUri)) {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(webUri, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
+      debugPrint('[Navigation] launch error: $e');
+    }
+  }
+
 
   void _joinRideRoom() {
     final socket = Provider.of<SocketService>(context, listen: false);
     final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
     socket.joinRide(rideId);
+
+    // Listen for passenger cancelling the ride in real time
+    socket.onRideCancelled = (data) {
+      if (!mounted) return;
+      SoundService().playRideCancelled();
+      final isArabic = Provider.of<DriverLocaleProvider>(context, listen: false).isArabic;
+      final reason = data is Map ? (data['reason'] ?? '') : '';
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.cancel, color: Colors.red, size: 28),
+              const SizedBox(width: 10),
+              Text(
+                isArabic ? 'تم إلغاء الرحلة' : 'Ride Cancelled',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Text(
+            isArabic
+                ? 'قام الراكب بإلغاء طلب الرحلة.\n${reason.isNotEmpty ? "السبب: $reason" : ""}'
+                : 'Passenger has cancelled this ride request.\n${reason.isNotEmpty ? "Reason: $reason" : ""}',
+            style: const TextStyle(fontSize: 15),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx); // Close dialog
+                Navigator.pop(context); // Exit ongoing screen back to driver dashboard/map
+              },
+              child: Text(
+                isArabic ? 'موافق' : 'OK',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+    };
   }
 
   void _startLiveGpsTracking() async {
@@ -118,6 +251,33 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
         _mapController.move(realPos, _mapController.camera.zoom);
         _broadcastLocation(pos);
       });
+
+      // Background service GPS bridge for when driver switches apps or screen locks
+      _bgLocationSub = FlutterBackgroundService().on('locationUpdate').listen((event) {
+        if (!mounted || event == null) return;
+        final lat = (event['lat'] as num?)?.toDouble();
+        final lng = (event['lng'] as num?)?.toDouble();
+        final heading = (event['heading'] as num?)?.toDouble();
+        final speed = (event['speed'] as num?)?.toDouble();
+        if (lat != null && lng != null) {
+          final realPos = LatLng(lat, lng);
+          setState(() {
+            _driverPos = realPos;
+            _gpsReady = true;
+          });
+          try {
+            _mapController.move(realPos, _mapController.camera.zoom);
+          } catch (_) {}
+          final rideId = (widget.tripData['id'] ?? widget.tripData['rideId'] ?? 'active_ride').toString();
+          Provider.of<SocketService>(context, listen: false).updateLocation(
+            lat,
+            lng,
+            activeRideId: rideId,
+            heading: heading,
+            speed: speed,
+          );
+        }
+      });
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -143,6 +303,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
   @override
   void dispose() {
     _positionSub?.cancel();
+    _bgLocationSub?.cancel();
     super.dispose();
   }
 
@@ -163,7 +324,6 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
     if (_isProcessing) return;
     setState(() => _isProcessing = true);
 
-    final socket = Provider.of<SocketService>(context, listen: false);
     final api = Provider.of<ApiService>(context, listen: false);
     final storage = Provider.of<StorageService>(context, listen: false);
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -224,56 +384,87 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
           }
         }
 
-        // Optimistically update UI step immediately like Uber
+        if (token == null) throw StateError('Sign in again to update ride status.');
+        if (widget.tripData['isTripMode'] == true) {
+          await api.updateTripStatus(rideId, 'ARRIVED', token);
+        } else {
+          await api.updateRideStatus(rideId, 'ARRIVED', token);
+        }
+        if (!mounted) return;
         setState(() {
           _step = RideProgressStep.arrivedAtPickup;
           _isProcessing = false;
         });
-
-        // Update active ride status in global provider
-        try {
-          Provider.of<ActiveRideProvider>(context, listen: false).updateRideStatus('ARRIVED');
-        } catch (_) {}
-
-        // Emit socket event to passenger
-        try {
-          socket.changeStatus(rideId: rideId, status: 'ARRIVED');
-        } catch (e) {
-          debugPrint('Socket arrived error: $e');
-        }
-
-        // Notify backend API
-        if (token != null) {
-          try {
-            if (widget.tripData['isTripMode'] == true) {
-              await api.updateTripStatus(rideId, 'ARRIVED', token);
-            } else {
-              await api.updateRideStatus(rideId, 'ARRIVED', token);
-            }
-          } catch (e) {
-            debugPrint('API updateRideStatus ARRIVED note: $e');
-          }
-        }
+        Provider.of<ActiveRideProvider>(context, listen: false).updateRideStatus('ARRIVED');
       } else if (_step == RideProgressStep.arrivedAtPickup) {
         setState(() => _isProcessing = false);
         _showOtpVerificationDialog(rideId);
       } else if (_step == RideProgressStep.inProgress) {
-        final priceStr = widget.tripData['price']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '10000';
-        final finalPrice = double.tryParse(priceStr) ?? 10000.0;
+        // Destination location check before finishing trip
+        if (_gpsReady) {
+          final dropPos = _dropPos;
+          double distanceInMeters = Geolocator.distanceBetween(
+            currentDriverPos.latitude,
+            currentDriverPos.longitude,
+            dropPos.latitude,
+            dropPos.longitude,
+          );
 
-        socket.changeStatus(
-          rideId: rideId,
-          status: 'COMPLETED',
-          payload: {'finalPrice': finalPrice},
-        );
+          if (distanceInMeters > 500) {
+            final isArabic = Provider.of<DriverLocaleProvider>(context, listen: false).isArabic;
+            final distKm = (distanceInMeters / 1000).toStringAsFixed(1);
 
-        if (token != null) {
-          if (widget.tripData['isTripMode'] == true) {
-            await api.updateTripStatus(rideId, 'COMPLETED', token);
-          } else {
-            await api.updateRideStatus(rideId, 'COMPLETED', token, finalPrice: finalPrice);
+            bool? proceed = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                title: Row(
+                  children: [
+                    const Icon(Icons.location_off_rounded, color: Colors.orange, size: 28),
+                    const SizedBox(width: 8),
+                    Flexible(child: Text(isArabic ? 'لم تصل لوجهة النزول' : 'Not at Destination', style: const TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                ),
+                content: Text(
+                  isArabic
+                      ? 'أنت حالياً بعيد عن موقع النزول المحدد بمقدار ($distKm كم). هل تريد إنهاء الرحلة الآن؟'
+                      : 'You are currently $distKm km from the passenger destination. Do you want to finish the trip now anyway?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(isArabic ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.grey)),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(isArabic ? 'إنهاء الرحلة' : 'Finish Trip'),
+                  ),
+                ],
+              ),
+            );
+
+            if (proceed != true) {
+              setState(() => _isProcessing = false);
+              return;
+            }
           }
         }
+
+        final priceStr = widget.tripData['price']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '10000';
+        final finalPrice = double.tryParse(priceStr) ?? 10000.0;
+        var settledPrice = finalPrice;
+
+        if (token == null) throw StateError('Sign in again to complete this trip.');
+        if (widget.tripData['isTripMode'] == true) {
+          await api.updateTripStatus(rideId, 'COMPLETED', token);
+        } else {
+          final response = await api.updateRideStatus(rideId, 'COMPLETED', token);
+          final serverFare = response.data?['ride']?['finalPrice'];
+          if (serverFare is num) settledPrice = serverFare.toDouble();
+        }
+        SoundService().playRideCompleted();
+        BackgroundServiceInstance.updateRideId(null);
 
         await auth.loadProfile();
 
@@ -287,7 +478,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
         });
 
         if (mounted) {
-          _showCompletionDialog(context, finalPrice);
+          _showCompletionDialog(context, settledPrice);
         }
       }
     } catch (e) {
@@ -370,7 +561,6 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
 
                 final api = Provider.of<ApiService>(context, listen: false);
                 final storage = Provider.of<StorageService>(context, listen: false);
-                final socket = Provider.of<SocketService>(context, listen: false);
                 final token = await storage.getToken();
 
                 try {
@@ -381,8 +571,6 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                       await api.verifyOtpForRide(rideId, otp, token);
                     }
                   }
-                  socket.changeStatus(rideId: rideId, status: 'PICKED_UP');
-
                   if (mounted) {
                     Navigator.pop(ctx);
                     setState(() => _step = RideProgressStep.inProgress);
@@ -621,30 +809,36 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                           final storage = Provider.of<StorageService>(context, listen: false);
                           final token = await storage.getToken();
 
+                          if (token == null) return;
                           try {
-                            Provider.of<ActiveRideProvider>(context, listen: false).clearActiveRide();
-                          } catch (_) {}
-
-                          if (token != null) {
-                            try {
-                              if (widget.tripData['isTripMode'] == true) {
-                                await api.cancelTripById(rideId, token);
-                              } else {
-                                await api.cancelRide(rideId, currentReason, token);
-                              }
-                            } catch (e) {
-                              debugPrint('Cancel ride note: $e');
+                            if (widget.tripData['isTripMode'] == true) {
+                              await api.cancelTripById(rideId, token);
+                            } else {
+                              await api.cancelRide(rideId, currentReason, token);
                             }
+                          } catch (e) {
+                            debugPrint('Cancel ride note: $e');
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Could not cancel the trip. Check your connection and retry.')),
+                              );
+                            }
+                            return;
                           }
+                          Provider.of<ActiveRideProvider>(context, listen: false).clearActiveRide();
+                          BackgroundServiceInstance.updateRideId(null);
 
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(isArabic ? 'تم إلغاء الرحلة' : 'Trip cancelled'),
                                 backgroundColor: Colors.red,
+                                behavior: SnackBarBehavior.floating,
                               ),
                             );
-                            Navigator.pop(context);
+                            // Navigate back to home, clearing the entire stack
+                            // so the driver can immediately receive new rides
+                            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
                           }
                         },
                         child: Text(
@@ -787,9 +981,11 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
               PolylineLayer(
                 polylines: [
                   Polyline(
-                    points: [currentPos, _pickupPos, _dropPos],
+                    points: _routePoints.isNotEmpty
+                        ? _routePoints
+                        : [currentPos, (_step == RideProgressStep.inProgress ? _dropPos : _pickupPos)],
                     color: AppColors.primaryOrange,
-                    strokeWidth: 4,
+                    strokeWidth: 5,
                   ),
                 ],
               ),
@@ -1005,7 +1201,25 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
+                        // External Google Maps Navigation button
+                        Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A73E8), // Google Blue
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(color: const Color(0xFF1A73E8).withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3)),
+                            ],
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.navigation_rounded, color: Colors.white, size: 24),
+                            tooltip: isArabic ? 'فتح في خرائط Google' : 'Open in Google Maps',
+                            onPressed: _openExternalNavigation,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                         Container(
                           width: 54,
                           height: 54,
@@ -1023,6 +1237,42 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
                       ],
                     ),
                   ],
+                ),
+              ),
+            ),
+          ),
+
+          // Floating Navigation Action Pill above bottom card
+          Positioned(
+            bottom: 275,
+            right: 16,
+            child: FadeInRight(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _openExternalNavigation,
+                  borderRadius: BorderRadius.circular(30),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A73E8),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.turn_right_rounded, color: Colors.white, size: 22),
+                        const SizedBox(width: 8),
+                        Text(
+                          isArabic ? 'بدء الملاحة (Google Maps)' : 'Start Navigation',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

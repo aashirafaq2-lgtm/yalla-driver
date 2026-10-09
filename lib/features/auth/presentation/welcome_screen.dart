@@ -1,7 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/auth_screen_layout.dart';
 import '../../../../core/widgets/iq_widgets.dart';
+import '../../../../core/providers/driver_locale_provider.dart';
 import 'package:animate_do/animate_do.dart';
 
 class WelcomeScreen extends StatelessWidget {
@@ -9,8 +11,11 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<DriverLocaleProvider>(context);
+    final isArabic = locale.isArabic;
+
     return AuthScreenLayout(
-      title: 'Sign in',
+      title: isArabic ? 'تسجيل الدخول' : 'Sign in',
       bottomButton: FadeInUp(
         duration: const Duration(milliseconds: 1000),
         delay: const Duration(milliseconds: 200),
@@ -18,12 +23,12 @@ class WelcomeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             IQButton(
-              label: 'Sign In',
+              label: locale.tr('sign_in'),
               onTap: () => Navigator.pushNamed(context, '/signin'),
             ),
             const SizedBox(height: 15),
             IQButton(
-              label: 'Create Account',
+              label: locale.tr('sign_up'),
               isOutlined: true,
               onTap: () => Navigator.pushNamed(context, '/signup_personal'),
             ),

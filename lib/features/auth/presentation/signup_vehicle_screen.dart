@@ -10,6 +10,8 @@ import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
 
 import 'dart:io';
+import 'dart:convert';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 class SignUpVehicleScreen extends StatefulWidget {
@@ -223,8 +225,30 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
         _carNumberController.text.trim(),
       );
 
-      await api.registerDriverAccount(cleanPhone, fullName ?? 'Driver');
-      
+      final cardIdBase64 = _cardIdBytes != null ? base64Encode(_cardIdBytes!) : '';
+      final carImageBase64 = _carImageBytes != null ? base64Encode(_carImageBytes!) : '';
+      final driverFaceBase64 = _driverFaceBytes != null ? base64Encode(_driverFaceBytes!) : '';
+
+      // CRITICAL FIX: Call registerDriverAccount to generate & send OTP via WhatsApp/SMS
+      // Previously this was missing, causing "No OTP record found" on verification
+      final registerResponse = await api.registerDriverAccount(
+        cleanPhone,
+        fullName ?? '',
+        age: null,
+      );
+
+      if (registerResponse.statusCode != 200 && registerResponse.statusCode != 201) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to create account. Please try again.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
       if (mounted) {
         Navigator.pushNamed(
           context, 
@@ -235,15 +259,20 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
             'vehicleName': _vehicleNameController.text.trim(),
             'carNumber': _carNumberController.text.trim(),
             'seats': seats,
+            'cardIdBase64': cardIdBase64,
+            'carImageBase64': carImageBase64,
+            'driverFaceBase64': driverFaceBase64,
           },
         );
       }
     } catch (e) {
+      debugPrint('Register Driver Error: $e');
       if (mounted) {
-        Navigator.pushNamed(
-          context, 
-          '/otp',
-          arguments: {'phone': cleanPhone, 'fullName': fullName ?? ''},
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending OTP: ${e.toString()}'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     } finally {

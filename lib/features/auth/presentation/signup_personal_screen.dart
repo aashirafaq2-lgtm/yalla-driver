@@ -18,6 +18,7 @@ class SignUpPersonalScreen extends StatefulWidget {
 
 class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   
   DateTime? _selectedDOB;
@@ -261,6 +262,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
             arguments: {
               'phone': formattedPhone,
               'fullName': _nameController.text.trim(),
+              'email': _emailController.text.trim(),
               'dob': _selectedDOB?.toIso8601String(),
               'age': _calculatedAge,
             },
@@ -341,6 +343,13 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
           ),
 
           IQPhoneInput(controller: _phoneController),
+          const SizedBox(height: 18),
+
+          IQTextField(
+            hintText: 'Email Address (Optional)', 
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+          ),
           const SizedBox(height: 18),
           
           Container(

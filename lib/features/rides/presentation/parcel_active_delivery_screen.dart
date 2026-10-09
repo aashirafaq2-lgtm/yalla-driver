@@ -103,21 +103,103 @@ class _ParcelActiveDeliveryScreenState extends State<ParcelActiveDeliveryScreen>
 
   Future<void> _handleAction() async {
     if (_isProcessing || _step == ParcelDeliveryStep.delivered) return;
-    setState(() => _isProcessing = true);
-
-    await Future.delayed(const Duration(milliseconds: 800)); // simulate API call
-
-    if (!mounted) return;
 
     if (_step == ParcelDeliveryStep.pickingUp) {
+      // Check distance to pickup location
+      if (_gpsReady) {
+        final dist = Geolocator.distanceBetween(
+          _driverPos.latitude, _driverPos.longitude,
+          _pickupPos.latitude, _pickupPos.longitude,
+        );
+        if (dist > 300) {
+          final distKm = (dist / 1000).toStringAsFixed(1);
+          final bool? proceed = await _showDistanceWarning(
+            title: 'لم تصل لموقع الاستلام بعد',
+            titleEn: 'Not at pickup location',
+            message: 'أنت على بعد $distKm كم من موقع استلام الطرد. هل تريد تأكيد الاستلام بالرغم من ذلك؟',
+            messageEn: 'You are $distKm km away from the pickup location. Confirm pickup anyway?',
+          );
+          if (proceed != true) return;
+        }
+      }
+
+      setState(() => _isProcessing = true);
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
       setState(() { _step = ParcelDeliveryStep.inTransit; _isProcessing = false; });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Package picked up! Navigate to delivery address.'), backgroundColor: Color(0xFF2563EB)),
       );
     } else if (_step == ParcelDeliveryStep.inTransit) {
+      // Check distance to dropoff location before showing delivery confirm
+      if (_gpsReady) {
+        final dist = Geolocator.distanceBetween(
+          _driverPos.latitude, _driverPos.longitude,
+          _dropPos.latitude, _dropPos.longitude,
+        );
+        if (dist > 300) {
+          final distKm = (dist / 1000).toStringAsFixed(1);
+          final bool? proceed = await _showDistanceWarning(
+            title: 'لم تصل لموقع التسليم بعد',
+            titleEn: 'Not at delivery location',
+            message: 'أنت على بعد $distKm كم من موقع تسليم الطرد. يرجى الوصول للموقع المحدد أولاً لإتمام التسليم.',
+            messageEn: 'You are $distKm km away from the delivery point. Reach the location before completing delivery.',
+          );
+          if (proceed != true) return;
+        }
+      }
+
       _showDeliveryConfirmDialog();
-      setState(() => _isProcessing = false);
     }
+  }
+
+  Future<bool?> _showDistanceWarning({
+    required String title,
+    required String titleEn,
+    required String message,
+    required String messageEn,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.location_off_rounded, color: Colors.orange, size: 28),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                titleEn,
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(messageEn, style: GoogleFonts.inter(fontSize: 14)),
+            const SizedBox(height: 8),
+            Text(message, style: const TextStyle(fontSize: 13, color: Colors.black54), textDirection: TextDirection.rtl),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Proceed Anyway', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showDeliveryConfirmDialog() {
