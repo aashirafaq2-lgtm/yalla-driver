@@ -150,26 +150,15 @@ class NotificationService {
             _firebaseMessagingBackgroundHandler);
 
         final messaging = FirebaseMessaging.instance;
-        await messaging.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-        ).timeout(
-          const Duration(seconds: 4),
-          onTimeout: () => const NotificationSettings(
-            authorizationStatus: AuthorizationStatus.notDetermined,
-            alert: AppleNotificationSetting.notSupported,
-            announcement: AppleNotificationSetting.notSupported,
-            badge: AppleNotificationSetting.notSupported,
-            carPlay: AppleNotificationSetting.notSupported,
-            criticalAlert: AppleNotificationSetting.notSupported,
-            lockScreen: AppleNotificationSetting.notSupported,
-            notificationCenter: AppleNotificationSetting.notSupported,
-            showPreviews: AppleShowPreviewSetting.notSupported,
-            sound: AppleNotificationSetting.notSupported,
-            timeSensitive: AppleNotificationSetting.notSupported,
-          ),
-        );
+        try {
+          await messaging.requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+          ).timeout(const Duration(seconds: 4));
+        } catch (e) {
+          debugPrint('[NotificationService] Notification permission request error: $e');
+        }
 
         // Foreground presentation options for iOS
         await FirebaseMessaging.instance
