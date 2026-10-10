@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -46,14 +47,10 @@ import 'package:provider/provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Background Service safely (non-web only)
-  try {
-    if (!kIsWeb) {
-      await BackgroundServiceInstance.initializeService();
-    }
-  } catch (e) {
-    debugPrint('Background service init error (non-fatal): $e');
-  }
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+  ));
 
   final apiService = ApiService();
   final storageService = StorageService();
@@ -63,18 +60,8 @@ void main() async {
   final activeRideProvider = ActiveRideProvider();
   authProvider.setSocketService(socketService);
 
-  // Initialize Local Notifications and Firebase FCM safely
-  try {
-    await NotificationService.initialize(apiService, storageService);
-    DeferredLinkService.resolveOnStartup();
-  } catch (e) {
-    debugPrint('Notification init error (non-fatal): $e');
-  }
-
-
-  // Initialize socket connection
-  socketService.connect();
-
+  // 1. Mount widget tree immediately so the Splash Screen renders on the very first frame.
+  // Critical for iOS / iPadOS App Store Review to prevent blank white screen.
   runApp(
     MultiProvider(
       providers: [
@@ -90,6 +77,39 @@ void main() async {
     ),
   );
 
+  // 2. Defer all network, push notification, FCM token lookups and background service setup
+  // to run safely after the first frame has rendered.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    try {
+      socketService.connect();
+    } catch (e) {
+      debugPrint('[Startup] Socket connection error: $e');
+    }
+
+    // Android foreground service only (never block or crash on iOS)
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      BackgroundServiceInstance.initializeService().catchError((e) {
+        debugPrint('[Startup] Background service init error: $e');
+      });
+    }
+
+    // Notifications, FCM token, and deferred link resolution run after initial delay
+    unawaited(Future<void>.delayed(const Duration(seconds: 2), () async {
+      try {
+        await NotificationService.initialize(apiService, storageService)
+            .timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('[Startup] Notification init deferred: $e');
+      }
+
+      try {
+        await DeferredLinkService.resolveOnStartup()
+            .timeout(const Duration(seconds: 5));
+      } catch (e) {
+        debugPrint('[Startup] Deferred link lookup skipped: $e');
+      }
+    }));
+  });
 }
 
 class YallaDriverApp extends StatelessWidget {

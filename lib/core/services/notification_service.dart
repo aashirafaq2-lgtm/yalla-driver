@@ -44,18 +44,22 @@ class NotificationService {
 
     try {
       tz.initializeTimeZones();
-      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      final tzInfo = await FlutterTimezone.getLocalTimezone().timeout(
+        const Duration(seconds: 2),
+      );
       tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
     } catch (_) {}
 
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('launcher_icon');
 
+    // On iOS, do not prompt for notification permissions immediately on initialization
+    // to prevent blocking UI rendering or triggering modal dialogues during App Review
     const DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
 
     const InitializationSettings initializationSettings =
@@ -139,7 +143,9 @@ class NotificationService {
     // Safely Initialize Firebase & FCM for Driver
     try {
       if (!kIsWeb) {
-        await Firebase.initializeApp();
+        await Firebase.initializeApp().timeout(
+          const Duration(seconds: 4),
+        );
         FirebaseMessaging.onBackgroundMessage(
             _firebaseMessagingBackgroundHandler);
 
@@ -148,6 +154,21 @@ class NotificationService {
           alert: true,
           badge: true,
           sound: true,
+        ).timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => const NotificationSettings(
+            authorizationStatus: AuthorizationStatus.notDetermined,
+            alert: AppleNotificationSetting.notSupported,
+            announcement: AppleNotificationSetting.notSupported,
+            badge: AppleNotificationSetting.notSupported,
+            carPlay: AppleNotificationSetting.notSupported,
+            criticalAlert: AppleNotificationSetting.notSupported,
+            lockScreen: AppleNotificationSetting.notSupported,
+            notificationCenter: AppleNotificationSetting.notSupported,
+            showPreviews: AppleShowPreviewSetting.notSupported,
+            sound: AppleNotificationSetting.notSupported,
+            timeSensitive: AppleNotificationSetting.notSupported,
+          ),
         );
 
         // Foreground presentation options for iOS
@@ -163,12 +184,18 @@ class NotificationService {
             _pendingRideRequest = Map<String, dynamic>.from(message.data);
           }
         });
-        final initialMessage = await messaging.getInitialMessage();
+        final initialMessage = await messaging.getInitialMessage().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => null,
+        );
         if (['NEW_RIDE_REQUEST', 'NEW_PARCEL_REQUEST'].contains(initialMessage?.data['type'])) {
           _pendingRideRequest = Map<String, dynamic>.from(initialMessage!.data);
         }
 
-        final fcmToken = await messaging.getToken();
+        final fcmToken = await messaging.getToken().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => null,
+        );
         debugPrint('[FCM] Driver Device Token: $fcmToken');
 
         if (fcmToken != null &&

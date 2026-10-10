@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -16,6 +17,9 @@ class BackgroundServiceInstance {
   static final FlutterBackgroundService _service = FlutterBackgroundService();
 
   static Future<void> initializeService() async {
+    // Only configure and run on Android; iOS handles background location via geolocator & UIBackgroundModes
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+
     // Create Android notification channel first
     final FlutterLocalNotificationsPlugin notificationsPlugin =
         FlutterLocalNotificationsPlugin();
@@ -53,14 +57,17 @@ class BackgroundServiceInstance {
   }
 
   static void startService() {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     _service.startService();
   }
 
   static void stopService() {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     _service.invoke('stop');
   }
 
   static void updateRideId(String? rideId) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     _service.invoke('setRideId', {'rideId': rideId ?? ''});
   }
 }

@@ -2,7 +2,7 @@
 name: yalla_driver
 description: "Yalla - Driver App"
 publish_to: 'none'
-version: 1.6.2+17
+version: 1.6.2+18
 
 environment:
   sdk: ^3.11.4
