@@ -235,10 +235,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your full name.')));
             return;
           }
-          if (_selectedDOB == null) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select your Date of Birth.')));
-            return;
-          }
+          // DOB is optional — not required per App Store guidelines
           if (_phoneController.text.trim().isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your phone number.')));
             return;
@@ -272,75 +269,6 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
       child: Column(
         children: [
           IQTextField(hintText: 'Full Name', controller: _nameController),
-          
-          // Stylish Date of Birth Picker Field
-          GestureDetector(
-            onTap: _selectDateOfBirth,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 15),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-                border: Border.all(color: Colors.grey.withOpacity(0.2)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.calendar_month_rounded, color: AppColors.primaryOrange.withOpacity(0.8), size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _selectedDOB == null
-                          ? 'Select Date of Birth'
-                          : '${_selectedDOB!.day.toString().padLeft(2, '0')} / ${_selectedDOB!.month.toString().padLeft(2, '0')} / ${_selectedDOB!.year}',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: _selectedDOB == null ? FontWeight.normal : FontWeight.bold,
-                        color: _selectedDOB == null ? Colors.grey.withOpacity(0.6) : Colors.black,
-                      ),
-                    ),
-                  ),
-                  const Icon(Icons.arrow_drop_down, color: Colors.black54),
-                ],
-              ),
-            ),
-          ),
-
-          // Dynamic Auto-Calculated Age Display
-          Container(
-            margin: const EdgeInsets.only(bottom: 15),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Colors.grey.withOpacity(0.2)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.cake_outlined, color: Colors.grey, size: 22),
-                const SizedBox(width: 12),
-                Text(
-                  'Age: ',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
-                ),
-                Text(
-                  _calculatedAge != null ? '$_calculatedAge Years Old' : 'Auto-calculated from birthday',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: _calculatedAge != null ? FontWeight.bold : FontWeight.normal,
-                    color: _calculatedAge != null ? AppColors.primaryOrange : Colors.grey.shade400,
-                  ),
-                ),
-              ],
-            ),
-          ),
 
           IQPhoneInput(controller: _phoneController),
           const SizedBox(height: 18),

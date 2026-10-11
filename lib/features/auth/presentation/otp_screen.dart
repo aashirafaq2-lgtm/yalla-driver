@@ -55,6 +55,30 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     _dismissKeyboard();
     setState(() => _isLoading = true);
 
+    // ── Demo / Review Mode ──────────────────────────────────────────────────
+    // Apple reviewer account: any phone ending with 7700000001
+    // Accept ANY 4-digit code (1234, 4321, etc.) entered by Apple Reviewer
+    final normalizedPhone = _phone.replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+    final isDemoAccount = normalizedPhone.endsWith('7700000001');
+    if (isDemoAccount) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      bool ok = false;
+      try {
+        ok = await authProvider.verifyOtp(_phone, _otp);
+      } catch (_) {}
+
+      if (!ok) {
+        final storage = Provider.of<StorageService>(context, listen: false);
+        await storage.saveAuth('apple_demo_jwt_token', 'demo_driver_id', name: 'Demo Driver', phone: _phone);
+      }
+
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+      }
+      return;
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final success = await authProvider.verifyOtp(_phone, _otp);

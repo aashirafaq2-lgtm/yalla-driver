@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -44,6 +44,20 @@ class _SignInScreenState extends State<SignInScreen> {
     if (raw.startsWith('0')) raw = raw.substring(1);
     final phone = '+964$raw';
     setState(() => _isLoading = true);
+
+    // ── Demo / Review Mode ──────────────────────────────────────────────────
+    // Apple reviewer account: phone 07700000001, OTP = 1234
+    if (raw == '7700000001') {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => OTPVerificationScreen(phone: phone),
+        ));
+      }
+      return;
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     try {
       final api = Provider.of<ApiService>(context, listen: false);
       final response = await api.login(phone);
