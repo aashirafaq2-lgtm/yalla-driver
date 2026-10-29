@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'notification_service.dart';
+import '../services/notification_service.dart';
 
 class DriverLocaleProvider extends ChangeNotifier {
   static const String _prefKey = 'driver_language_code';

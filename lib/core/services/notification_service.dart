@@ -445,7 +445,7 @@ class NotificationService {
     int offset = 0;
     for (final interval in intervals) {
       final mins = interval['minutes'] as int;
-      final msg  = _nt(interval['key']!);
+      final msg  = _nt(interval['key'] as String);
       final reminderTime = rideTime.subtract(Duration(minutes: mins));
       
       if (reminderTime.isAfter(now)) {
