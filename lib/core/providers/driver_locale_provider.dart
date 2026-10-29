@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'notification_service.dart';
 
 class DriverLocaleProvider extends ChangeNotifier {
   static const String _prefKey = 'driver_language_code';
@@ -17,6 +18,7 @@ class DriverLocaleProvider extends ChangeNotifier {
     try {
       final code = await _storage.read(key: _prefKey) ?? 'ar';
       _locale = Locale(code);
+      NotificationService.setLanguage(code); // keep notifications in sync
       notifyListeners();
     } catch (_) {}
   }
@@ -27,6 +29,7 @@ class DriverLocaleProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _storage.write(key: _prefKey, value: newLocale.languageCode);
+      NotificationService.setLanguage(newLocale.languageCode); // keep notifications in sync
     } catch (_) {}
   }
 
@@ -203,6 +206,37 @@ class DriverLocaleProvider extends ChangeNotifier {
       'account_under_review': 'Your account is under review. We will notify you once it is approved.',
       'contact_support': 'Contact Support',
       'delete_permanently': 'Delete Permanently',
+
+      // Signup Form - Personal
+      'sign_up_title': 'Sign Up',
+      'full_name': 'Full Name',
+      'email_optional': 'Email Address (Optional)',
+      'work_area': 'Work area',
+      'upload_license': 'Upload your driver license',
+      'license_uploaded': 'Driver license uploaded',
+      'upload_license_title': 'Upload Driver License',
+      'select_governorate': 'Select Governorate',
+      'click_choose_picture': 'Click to Choose Picture',
+      'submit_document': 'Submit Document',
+      'doc_saved': 'Document uploaded and saved successfully!',
+      'val_enter_name': 'Please enter your full name.',
+      'val_enter_phone_num': 'Please enter your phone number.',
+      'val_select_work_area': 'Please select your work area (From & To).',
+      'val_upload_license': 'Please upload your driver license before continuing.',
+
+      // Signup Form - Vehicle
+      'car_name_hint': 'Car or Vehicle name',
+      'number_of_seats': 'Number of seats',
+      'car_number_hint': 'Car number',
+      'upload_card_id': 'Upload Card ID',
+      'upload_car_image': 'Upload Image of car',
+      'driver_face_photo': 'Photo for the driver face',
+      'initializing': 'Initializing...',
+      'val_enter_car_name': 'Please enter vehicle name',
+      'val_enter_car_number': 'Please enter car number',
+      'val_upload_card_id': 'Please upload Card ID',
+      'val_upload_car_image': 'Please upload Image of car',
+      'val_upload_driver_face': 'Please upload Photo for driver face',
     },
     'ar': {
       // Navigation & General
@@ -372,6 +406,37 @@ class DriverLocaleProvider extends ChangeNotifier {
       'account_under_review': 'حسابك قيد المراجعة. سنُخطرك فور الموافقة عليه.',
       'contact_support': 'تواصل مع الدعم',
       'delete_permanently': 'حذف نهائياً',
+
+      // Signup Form - Personal
+      'sign_up_title': 'التسجيل',
+      'full_name': 'الاسم الكامل',
+      'email_optional': 'البريد الإلكتروني (اختياري)',
+      'work_area': 'منطقة العمل',
+      'upload_license': 'ارفع رخصة القيادة',
+      'license_uploaded': 'تم رفع رخصة القيادة',
+      'upload_license_title': 'رفع رخصة القيادة',
+      'select_governorate': 'اختر المحافظة',
+      'click_choose_picture': 'انقر لاختيار الصورة',
+      'submit_document': 'إرسال المستند',
+      'doc_saved': 'تم رفع المستند وحفظه بنجاح!',
+      'val_enter_name': 'يرجى إدخال اسمك الكامل.',
+      'val_enter_phone_num': 'يرجى إدخال رقم هاتفك.',
+      'val_select_work_area': 'يرجى اختيار منطقة العمل (من وإلى).',
+      'val_upload_license': 'يرجى رفع رخصة القيادة قبل المتابعة.',
+
+      // Signup Form - Vehicle
+      'car_name_hint': 'اسم السيارة أو المركبة',
+      'number_of_seats': 'عدد المقاعد',
+      'car_number_hint': 'رقم السيارة',
+      'upload_card_id': 'ارفع بطاقة الهوية',
+      'upload_car_image': 'ارفع صورة السيارة',
+      'driver_face_photo': 'صورة وجه السائق',
+      'initializing': 'جاري التحميل...',
+      'val_enter_car_name': 'يرجى إدخال اسم المركبة',
+      'val_enter_car_number': 'يرجى إدخال رقم السيارة',
+      'val_upload_card_id': 'يرجى رفع بطاقة الهوية',
+      'val_upload_car_image': 'يرجى رفع صورة السيارة',
+      'val_upload_driver_face': 'يرجى رفع صورة وجه السائق',
     },
   };
 

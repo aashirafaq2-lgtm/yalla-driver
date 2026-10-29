@@ -38,7 +38,7 @@ class WelcomeScreen extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(height: 100),
+          const SizedBox(height: 50),
           FadeInDown(
             duration: const Duration(milliseconds: 800),
             child: Row(
@@ -65,7 +65,62 @@ class WelcomeScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 100),
+          const SizedBox(height: 25),
+          // Prominent Language Switcher for Drivers
+          FadeInUp(
+            duration: const Duration(milliseconds: 600),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () => locale.setLocale(const Locale('ar')),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isArabic ? AppColors.primaryOrange : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'العربية',
+                        style: TextStyle(
+                          color: isArabic ? Colors.white : Colors.black87,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          fontFamily: 'NotoKufiArabic',
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => locale.setLocale(const Locale('en')),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !isArabic ? AppColors.primaryOrange : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'English',
+                        style: TextStyle(
+                          color: !isArabic ? Colors.white : Colors.black87,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 50),
         ],
       ),
     );

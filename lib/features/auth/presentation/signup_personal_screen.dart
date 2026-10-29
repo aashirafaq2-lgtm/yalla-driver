@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../../../core/providers/driver_locale_provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -23,8 +26,8 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
   
   DateTime? _selectedDOB;
   int? _calculatedAge;
-  String _selectedFrom = 'From';
-  String _selectedTo = 'To';
+  String? _selectedFrom;
+  String? _selectedTo;
   bool _isDriverLicenseUploaded = false;
   Uint8List? _licenseImageBytes;
 
@@ -32,7 +35,26 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
 
   final List<String> _cities = ['Kirkuk', 'Baghdad', 'Erbil', 'Basra', 'Karbala', 'Najaf', 'Duhok', 'Sulaymaniyah'];
 
+  static const Map<String, String> _cityArabicMap = {
+    'Kirkuk': 'كركوك',
+    'Baghdad': 'بغداد',
+    'Erbil': 'أربيل',
+    'Basra': 'البصرة',
+    'Karbala': 'كربلاء',
+    'Najaf': 'النجف',
+    'Duhok': 'دهوك',
+    'Sulaymaniyah': 'السليمانية',
+    'Anbar': 'الأنبار',
+    'Babylon': 'بابل',
+    'Wasit': 'واسط',
+    'Saladin': 'صلاح الدين',
+    'Diyala': 'ديالى',
+  };
+
+  String _getCityName(String city, bool isArabic) => isArabic ? (_cityArabicMap[city] ?? city) : city;
+
   void _showCityPicker(bool isFrom) {
+    final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -42,7 +64,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Select Governorate', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(locale.tr('select_governorate'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 15),
               Expanded(
                 child: ListView.builder(
@@ -50,7 +72,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
                   itemCount: _cities.length,
                   itemBuilder: (context, index) {
                     return ListTile(
-                      title: Center(child: Text(_cities[index])),
+                      title: Center(child: Text(_getCityName(_cities[index], locale.isArabic), style: TextStyle(fontWeight: FontWeight.bold, fontFamily: locale.isArabic ? 'NotoKufiArabic' : null))),
                       onTap: () {
                         setState(() {
                           if (isFrom) {
@@ -161,91 +183,95 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Center(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _pickFile(setDialogState),
-                child: Container(
-                  width: double.infinity,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: _licenseImageBytes != null ? const Color(0xFF65CA28) : AppColors.primaryOrange.withOpacity(0.2), 
-                      width: 2
+        builder: (context, setDialogState) {
+          final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Center(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _pickFile(setDialogState),
+                  child: Container(
+                    width: double.infinity,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: _licenseImageBytes != null ? const Color(0xFF65CA28) : AppColors.primaryOrange.withOpacity(0.2), 
+                        width: 2
+                      ),
                     ),
+                    child: _licenseImageBytes != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(13),
+                            child: Image.memory(_licenseImageBytes!, fit: BoxFit.cover),
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_a_photo_outlined, size: 50, color: AppColors.primaryOrange.withOpacity(0.6)),
+                              const SizedBox(height: 10),
+                              Text(locale.tr('click_choose_picture'), style: const TextStyle(color: Colors.black45, fontSize: 13, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                   ),
-                  child: _licenseImageBytes != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(13),
-                          child: Image.memory(_licenseImageBytes!, fit: BoxFit.cover),
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_a_photo_outlined, size: 50, color: AppColors.primaryOrange.withOpacity(0.6)),
-                            const SizedBox(height: 10),
-                            const Text('Click to Choose Picture', style: TextStyle(color: Colors.black45, fontSize: 13, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
                 ),
-              ),
-              const SizedBox(height: 25),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _licenseImageBytes == null ? null : () {
-                    setState(() => _isDriverLicenseUploaded = true);
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Document uploaded and saved successfully!')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryOrange,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    disabledBackgroundColor: Colors.grey.shade300,
+                const SizedBox(height: 25),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _licenseImageBytes == null ? null : () {
+                      setState(() => _isDriverLicenseUploaded = true);
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(locale.tr('doc_saved'))),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      disabledBackgroundColor: Colors.grey.shade300,
+                    ),
+                    child: Text(locale.tr('submit_document'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
-                  child: const Text('Submit Document', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<DriverLocaleProvider>(context);
     return AuthScreenLayout(
-      title: 'Sign Up',
+      title: locale.tr('sign_up_title'),
       onBack: () => Navigator.pop(context),
       bottomButton: IQButton(
-        label: 'Next',
+        label: locale.tr('next'),
         onTap: () {
           if (_nameController.text.trim().isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your full name.')));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_enter_name'))));
             return;
           }
           // DOB is optional — not required per App Store guidelines
           if (_phoneController.text.trim().isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your phone number.')));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_enter_phone_num'))));
             return;
           }
-          if (_selectedFrom == 'From' || _selectedTo == 'To') {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select your work area (From & To).')));
+          if (_selectedFrom == null || _selectedTo == null) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_select_work_area'))));
             return;
           }
           if (!_isDriverLicenseUploaded) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload your driver license before continuing.')));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_upload_license'))));
             return;
           }
           String rawPhone = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
@@ -268,13 +294,19 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
       ),
       child: Column(
         children: [
-          IQTextField(hintText: 'Full Name', controller: _nameController),
+          IQTextField(
+            hintText: locale.tr('full_name'),
+            controller: _nameController,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z ]"))
+            ],
+          ),
 
           IQPhoneInput(controller: _phoneController),
           const SizedBox(height: 18),
 
           IQTextField(
-            hintText: 'Email Address (Optional)', 
+            hintText: locale.tr('email_optional'), 
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
           ),
@@ -297,7 +329,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
                   flex: 2,
                   child: Center(
                     child: Text(
-                      'Work area',
+                      locale.tr('work_area'),
                       style: TextStyle(color: Colors.grey.withOpacity(0.6), fontSize: 13),
                     ),
                   ),
@@ -309,10 +341,10 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
                     onTap: () => _showCityPicker(true),
                     child: Center(
                       child: Text(
-                        _selectedFrom,
+                        (_selectedFrom != null ? _getCityName(_selectedFrom!, locale.isArabic) : locale.tr('from')),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: _selectedFrom == 'From' ? Colors.black26 : Colors.black,
+                          color: _selectedFrom == null ? Colors.black26 : Colors.black,
                           fontSize: 15,
                         ),
                       ),
@@ -326,10 +358,10 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
                     onTap: () => _showCityPicker(false),
                     child: Center(
                       child: Text(
-                        _selectedTo,
+                        (_selectedTo != null ? _getCityName(_selectedTo!, locale.isArabic) : locale.tr('to')),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: _selectedTo == 'To' ? Colors.black26 : Colors.black,
+                          color: _selectedTo == null ? Colors.black26 : Colors.black,
                           fontSize: 15,
                         ),
                       ),
@@ -343,7 +375,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
           FadeInUp(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => _showUploadDialog('Upload Driver License'),
+              onTap: () => _showUploadDialog(locale.tr('upload_license_title')),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 18),
@@ -363,7 +395,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      _isDriverLicenseUploaded ? 'Driver license uploaded' : 'Upload your driver license',
+                      _isDriverLicenseUploaded ? locale.tr('license_uploaded') : locale.tr('upload_license'),
                       style: TextStyle(
                         color: _isDriverLicenseUploaded ? const Color(0xFF65CA28) : Colors.black54,
                         fontWeight: _isDriverLicenseUploaded ? FontWeight.bold : FontWeight.normal,

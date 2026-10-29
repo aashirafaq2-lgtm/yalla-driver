@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import '../../../core/widgets/auth_screen_layout.dart';
 import '../../../core/widgets/iq_widgets.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/providers/driver_locale_provider.dart';
 
 import 'dart:io';
 import 'dart:convert';
@@ -96,8 +98,9 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
     } catch (e) {
       debugPrint('Error picking file: $e');
       if (mounted) {
+        final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not pick file: ${e.toString()}')),
+          SnackBar(content: Text('${locale.tr("error")}: ${e.toString()}')),
         );
       }
     }
@@ -189,24 +192,25 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
   }
 
   Future<void> _handleNext(String? phone, String? fullName) async {
+    final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
     if (_vehicleNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter vehicle name')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_enter_car_name'))));
       return;
     }
     if (_carNumberController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter car number')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_enter_car_number'))));
       return;
     }
     if (!_isCardIdUploaded) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload Card ID')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_upload_card_id'))));
       return;
     }
     if (!_isCarImageUploaded) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload Image of car')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_upload_car_image'))));
       return;
     }
     if (!_isDriverFaceUploaded) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please upload Photo for driver face')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_upload_driver_face'))));
       return;
     }
 
@@ -282,22 +286,26 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<DriverLocaleProvider>(context);
     final Map<String, dynamic>? args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final String? phone = args?['phone'];
     final String? fullName = args?['fullName'];
 
     return AuthScreenLayout(
-      title: 'Sign Up',
+      title: locale.tr('sign_up_title'),
       onBack: () => Navigator.pop(context),
       bottomButton: IQButton(
-        label: _isLoading ? 'Initializng...' : 'Next',
+        label: _isLoading ? locale.tr('initializing') : locale.tr('next'),
         onTap: () => _handleNext(phone, fullName),
       ),
       child: Column(
         children: [
           IQTextField(
-            hintText: 'Car or Vehicle name',
+            hintText: locale.tr('car_name_hint'),
             controller: _vehicleNameController,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9 ]')),
+            ],
           ),
           
           Container(
@@ -316,7 +324,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Number of seats',
+                  locale.tr('number_of_seats'),
                   style: TextStyle(color: Colors.grey.withOpacity(0.6), fontSize: 13),
                 ),
                 Row(
@@ -341,26 +349,29 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
           ),
 
           IQTextField(
-            hintText: 'Car number',
+            hintText: locale.tr('car_number_hint'),
             controller: _carNumberController,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9\- ]')),
+            ],
           ),
 
           _buildFunctionalUploadBox(
-            label: 'Upload Card ID',
+            label: locale.tr('upload_card_id'),
             isUploaded: _isCardIdUploaded,
-            onTap: () => _showUploadDialog('Upload Card ID', 0),
+            onTap: () => _showUploadDialog(locale.tr('upload_card_id'), 0),
           ),
 
           _buildFunctionalUploadBox(
-            label: 'Upload Image of car',
+            label: locale.tr('upload_car_image'),
             isUploaded: _isCarImageUploaded,
-            onTap: () => _showUploadDialog('Upload Image of car', 1),
+            onTap: () => _showUploadDialog(locale.tr('upload_car_image'), 1),
           ),
 
           _buildFunctionalUploadBox(
-            label: 'Photo for the driver face',
+            label: locale.tr('driver_face_photo'),
             isUploaded: _isDriverFaceUploaded,
-            onTap: () => _showUploadDialog('Photo for the driver face', 2),
+            onTap: () => _showUploadDialog(locale.tr('driver_face_photo'), 2),
           ),
         ],
       ),

@@ -275,6 +275,10 @@ class _TripPassengersScreenState extends State<TripPassengersScreen> {
     final seats = b['seatsBooked'] ?? 1;
     final price = b['totalPrice'];
     final status = b['status']?.toString() ?? 'CONFIRMED';
+    final fromCity = b['fromCity']?.toString() ?? widget.tripFrom;
+    final toCity = b['toCity']?.toString() ?? widget.tripTo;
+    final pickupLoc = b['pickupLocation']?.toString() ?? fromCity;
+    final dropLoc = b['dropLocation']?.toString() ?? toCity;
 
     Color statusColor;
     String statusLabel;
@@ -302,75 +306,140 @@ class _TripPassengersScreenState extends State<TripPassengersScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primaryOrange.withOpacity(0.1),
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primaryOrange.withOpacity(0.3)),
-            ),
-            child: Center(
-              child: Text(
-                initials,
-                style: GoogleFonts.outfit(
-                  color: AppColors.primaryOrange,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
+          // Top Row: Avatar, Name, Phone, Status
+          Row(
+            children: [
+              // Avatar
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.primaryOrange.withOpacity(0.3)),
+                ),
+                child: Center(
+                  child: Text(
+                    initials,
+                    style: GoogleFonts.outfit(
+                      color: AppColors.primaryOrange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          // Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15),
-                ),
-                if (phone.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(Icons.phone_outlined, size: 12, color: Colors.black45),
-                      const SizedBox(width: 4),
-                      Text(phone, style: GoogleFonts.inter(fontSize: 12, color: Colors.black54)),
+              const SizedBox(width: 12),
+              // Name & Phone
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    if (phone.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.phone_outlined, size: 13, color: Colors.black45),
+                          const SizedBox(width: 4),
+                          Text(phone, style: GoogleFonts.inter(fontSize: 12, color: Colors.black54)),
+                        ],
+                      ),
                     ],
+                  ],
+                ),
+              ),
+              // Status badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    fontFamily: isArabic ? 'NotoKufiArabic' : null,
                   ),
-                ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: Colors.black12),
+          const SizedBox(height: 10),
+
+          // Route Details (Origin / Pickup -> Destination / Dropoff)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.black.withOpacity(0.04)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.trip_origin, size: 14, color: Color(0xFF22C55E)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${isArabic ? "من" : "From"}: $fromCity ${pickupLoc != fromCity ? "($pickupLoc)" : ""}',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    _miniChip(Icons.event_seat_outlined, '$seats ${isArabic ? "مقعد" : "seat(s)"}'),
+                    const Icon(Icons.location_on, size: 14, color: AppColors.primaryOrange),
                     const SizedBox(width: 6),
-                    if (price != null) _miniChip(Icons.monetization_on_outlined, '$price ${isArabic ? "د.ع" : "IQD"}'),
+                    Expanded(
+                      child: Text(
+                        '${isArabic ? "إلى" : "To"}: $toCity ${dropLoc != toCity ? "($dropLoc)" : ""}',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
-          // Status badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              statusLabel,
-              style: TextStyle(
-                color: statusColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 11,
-                fontFamily: isArabic ? 'NotoKufiArabic' : null,
-              ),
-            ),
+
+          const SizedBox(height: 10),
+
+          // Bottom Chips: Seats and Total Fare
+          Row(
+            children: [
+              _miniChip(Icons.event_seat_outlined, '$seats ${isArabic ? "مقعد" : "seat(s)"}'),
+              const SizedBox(width: 8),
+              if (price != null)
+                _miniChip(Icons.monetization_on_outlined, '$price ${isArabic ? "د.ع" : "IQD"}'),
+            ],
           ),
         ],
       ),

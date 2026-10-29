@@ -3,18 +3,102 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../network/api_service.dart';
 import 'storage_service.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 
+// Notification translations — top-level so background isolates can access them
+const Map<String, Map<String, String>> _notifTranslations = {
+  'en': {
+    'new_ride':            'New Ride Request!!',
+    'new_parcel':          'New Parcel Request!!',
+    'ride_cancelled':      'Ride Cancelled',
+    'ride_cancelled_body': 'The passenger has cancelled this ride.',
+    'upcoming_ride':       'Upcoming Scheduled Ride',
+    'ride_1hr':            'You have a scheduled ride in 1 hour.',
+    'ride_30min':          'You have a scheduled ride in 30 minutes.',
+    'ride_15min':          'You have a scheduled ride in 15 minutes.',
+    'ride_5min':           'You have a scheduled ride in 5 minutes! Get ready.',
+    'yalla_driver':        'Yalla Driver',
+  },
+  'ar': {
+    'new_ride':            'طلب رحلة جديد!!',
+    'new_parcel':          'طلب طرد جديد!!',
+    'ride_cancelled':      'تم إلغاء الرحلة',
+    'ride_cancelled_body': 'قام الراكب بإلغاء هذه الرحلة.',
+    'upcoming_ride':       'رحلة مجدولة قادمة',
+    'ride_1hr':            'لديك رحلة مجدولة خلال ساعة.',
+    'ride_30min':          'لديك رحلة مجدولة خلال 30 دقيقة.',
+    'ride_15min':          'لديك رحلة مجدولة خلال 15 دقيقة.',
+    'ride_5min':           'لديك رحلة خلال 5 دقائق! استعد.',
+    'yalla_driver':        'يلّا درايف',
+  },
+};
+
+/// Translates a notification key. Top-level = usable in background isolates.
+String _getNotifText(String key, String lang) =>
+    _notifTranslations[lang]?[key] ?? _notifTranslations['en']![key] ?? key;
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await Firebase.initializeApp();
+    final data = message.data;
+    final type = data['type']?.toString();
+
+    // Only show a local notification for data-only FCM messages.
+    // If the FCM payload has a notification field, the OS already displays it.
+    if (message.notification == null &&
+        (type == 'NEW_RIDE_REQUEST' || type == 'NEW_PARCEL_REQUEST')) {
+      const storage = FlutterSecureStorage();
+      final lang = await storage.read(key: 'driver_language_code') ?? 'ar';
+
+      final title = _getNotifText(
+          type == 'NEW_RIDE_REQUEST' ? 'new_ride' : 'new_parcel', lang);
+
+      // Backend sends pickupName/dropName for rides, pickupRegion/dropRegion for parcels.
+      // notifBody is a pre-formatted fallback from the backend.
+      final String from = data['pickupName'] ?? data['pickupRegion'] ?? data['pickup'] ?? '';
+      final String to   = data['dropName']   ?? data['dropRegion']   ?? data['dropoff'] ?? '';
+      final String price = data['estimatedPrice'] ?? data['price'] ?? '';
+      final String body = (from.isNotEmpty && to.isNotEmpty)
+          ? '$from \u2192 $to${price.isNotEmpty ? ' ($price IQD)' : ''}'
+          : (data['notifBody'] ?? '');
+
+      final plugin = FlutterLocalNotificationsPlugin();
+      await plugin.initialize(const InitializationSettings(
+        android: AndroidInitializationSettings('launcher_icon'),
+        iOS: DarwinInitializationSettings(),
+      ));
+      await plugin.show(
+        type == 'NEW_RIDE_REQUEST' ? 1001 : 1002,
+        title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'yalla_ride_request',
+            'Incoming Ride Requests',
+            importance: Importance.max,
+            priority: Priority.max,
+            playSound: true,
+            enableVibration: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: jsonEncode(data),
+      );
+    }
     debugPrint('[FCM Background] Driver received message: ${message.messageId}');
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('[FCM Background] Error: $e');
+  }
 }
 
 class NotificationService {
@@ -23,6 +107,17 @@ class NotificationService {
 
   static bool _initialized = false;
   static Map<String, dynamic>? _pendingRideRequest;
+
+  // Language tracking — kept in sync with DriverLocaleProvider
+  static String _languageCode = 'ar'; // default: Arabic
+  static const _langStorage = FlutterSecureStorage();
+  static const _langStorageKey = 'driver_language_code';
+
+  /// Called by DriverLocaleProvider whenever the driver changes language.
+  static void setLanguage(String code) => _languageCode = code;
+
+  /// Translates a notification string key using the current language.
+  static String _nt(String key) => _getNotifText(key, _languageCode);
 
   // Channels
   static const String channelRideRequests = 'yalla_ride_request';
@@ -41,6 +136,12 @@ class NotificationService {
   static Future<void> initialize(
       [ApiService? apiService, StorageService? storageService]) async {
     if (_initialized) return;
+
+    // Load the driver's saved language preference
+    try {
+      final saved = await _langStorage.read(key: _langStorageKey) ?? 'ar';
+      _languageCode = saved;
+    } catch (_) {}
 
     try {
       tz.initializeTimeZones();
@@ -221,10 +322,16 @@ class NotificationService {
           // Foreground socket listeners show request sheets for rides and parcels.
           final isLiveRequest = ['NEW_RIDE_REQUEST', 'NEW_PARCEL_REQUEST'].contains(type);
           if (notification != null && !isLiveRequest) {
+            final String title = type == 'RIDE_CANCELLED'
+                ? _nt('ride_cancelled')
+                : (notification.title ?? _nt('yalla_driver'));
+            final String body = type == 'RIDE_CANCELLED'
+                ? _nt('ride_cancelled_body')
+                : (notification.body ?? '');
             showNotification(
               id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-              title: notification.title ?? 'Yalla Driver',
-              body: notification.body ?? '',
+              title: title,
+              body: body,
               channelId: type == 'RIDE_CANCELLED' ? channelRideRequests : channelActiveRide,
             );
           }
@@ -329,23 +436,23 @@ class NotificationService {
     final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
     final intervals = [
-      {'minutes': 60, 'message': 'You have a scheduled ride in 1 hour.'},
-      {'minutes': 30, 'message': 'You have a scheduled ride in 30 minutes.'},
-      {'minutes': 15, 'message': 'You have a scheduled ride in 15 minutes.'},
-      {'minutes': 5, 'message': 'You have a scheduled ride in 5 minutes! Get ready.'},
+      {'minutes': 60, 'key': 'ride_1hr'},
+      {'minutes': 30, 'key': 'ride_30min'},
+      {'minutes': 15, 'key': 'ride_15min'},
+      {'minutes': 5,  'key': 'ride_5min'},
     ];
 
     int offset = 0;
     for (final interval in intervals) {
       final mins = interval['minutes'] as int;
-      final msg = interval['message'] as String;
+      final msg  = _nt(interval['key']!);
       final reminderTime = rideTime.subtract(Duration(minutes: mins));
       
       if (reminderTime.isAfter(now)) {
         try {
           await _notificationsPlugin.zonedSchedule(
             idScheduledBase + offset + rideId.hashCode.abs() % 10000,
-            'Upcoming Scheduled Ride',
+            _nt('upcoming_ride'),
             msg,
             tz.TZDateTime.from(reminderTime, tz.local),
             details,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class IQButton extends StatelessWidget {
   final String label;
@@ -56,6 +57,7 @@ class IQTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final bool isPhone;
   final Widget? suffixIcon;
+  final List<TextInputFormatter>? inputFormatters;
 
   const IQTextField({
     super.key,
@@ -64,6 +66,7 @@ class IQTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.isPhone = false,
     this.suffixIcon,
+    this.inputFormatters,
   });
 
   @override
@@ -85,6 +88,7 @@ class IQTextField extends StatelessWidget {
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         style: const TextStyle(fontWeight: FontWeight.w500),
         decoration: InputDecoration(
           hintText: hintText,
