@@ -128,7 +128,7 @@ class _TripOngoingScreenState extends State<TripOngoingScreen> {
 
     try {
       final dio = Dio();
-      final url = 'https://api-yalla.aaaj.shop/api/map/directions?originLat=${start.latitude}&originLng=${start.longitude}&destLat=${dest.latitude}&destLng=${dest.longitude}';
+      final url = 'https://api.aynalmassar.com/api/map/directions?originLat=${start.latitude}&originLng=${start.longitude}&destLat=${dest.latitude}&destLng=${dest.longitude}';
       final res = await dio.get(url, options: Options(receiveTimeout: const Duration(seconds: 4)));
       if (res.statusCode == 200 && res.data != null && res.data['route'] != null) {
         final ptsStr = res.data['route']['points'] ?? '';
