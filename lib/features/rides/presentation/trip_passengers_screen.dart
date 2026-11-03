@@ -1,3 +1,4 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -381,47 +382,76 @@ class _TripPassengersScreenState extends State<TripPassengersScreen> {
 
           // Route Details (Origin / Pickup -> Destination / Dropoff)
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.black.withOpacity(0.04)),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.black.withOpacity(0.06)),
             ),
             child: Column(
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.trip_origin, size: 14, color: Color(0xFF22C55E)),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.trip_origin, size: 16, color: Color(0xFF22C55E)),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        '${isArabic ? "من" : "From"}: $fromCity ${pickupLoc != fromCity ? "($pickupLoc)" : ""}',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isArabic ? 'نقطة ركوب الراكب (Pickup Location):' : 'Passenger Pickup Location:',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '$pickupLoc (${fromCity})',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.map_rounded, color: AppColors.primaryOrange, size: 22),
+                      tooltip: isArabic ? 'عرض موقع الركوب على الخريطة' : 'View on Google Maps',
+                      onPressed: () async {
+                        final query = Uri.encodeComponent('$pickupLoc, $fromCity, Iraq');
+                        final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+                        try {
+                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        } catch (_) {}
+                      },
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const Divider(height: 12, color: Colors.black12),
                 Row(
                   children: [
-                    const Icon(Icons.location_on, size: 14, color: AppColors.primaryOrange),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.location_on, size: 16, color: Colors.red),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        '${isArabic ? "إلى" : "To"}: $toCity ${dropLoc != toCity ? "($dropLoc)" : ""}',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isArabic ? 'وجهة النزول (Destination):' : 'Drop-off Destination:',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '$dropLoc (${toCity})',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ),
                   ],
