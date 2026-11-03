@@ -18,6 +18,31 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
   int _seatsAvailable = 4;
   String _fromCity = 'Kirkuk';
   String _toCity = 'Baghdad';
+  
+  static const Map<String, String> _cityArabicMap = {
+    'Kirkuk': 'كركوك',
+    'Baghdad': 'بغداد',
+    'Erbil': 'أربيل',
+    'Basra': 'البصرة',
+    'Sulaymaniyah': 'السليمانية',
+    'Najaf': 'النجف',
+    'Karbala': 'كربلاء',
+    'Mosul': 'الموصل',
+    'Dohuk': 'دهوك',
+    'Duhok': 'دهوك',
+    'Anbar': 'الأنبار',
+    'Babel': 'بابل',
+    'Babylon': 'بابل',
+    'Wasit': 'واسط',
+    'Saladin': 'صلاح الدين',
+    'Diyala': 'ديالى',
+    'Maysan': 'ميسان',
+    'Muthanna': 'المثنى',
+    'Qadisiyyah': 'القادسية',
+    'Dhi Qar': 'ذي قار',
+    'Nineveh': 'نينوى (الموصل)',
+  };
+
   final List<String> _iraqiCities = [
     'Baghdad', 'Kirkuk', 'Erbil', 'Basra', 'Sulaymaniyah',
     'Najaf', 'Karbala', 'Mosul', 'Dohuk', 'Anbar', 'Babel',
@@ -121,7 +146,7 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
                   itemBuilder: (context, index) {
                     final city = _iraqiCities[index];
                     return ListTile(
-                      title: Text(city, style: const TextStyle(fontSize: 16)),
+                      title: Text('${_cityArabicMap[city] ?? city} ($city)', style: const TextStyle(fontSize: 16)),
                       trailing: (isOrigin ? _fromCity == city : _toCity == city)
                           ? const Icon(Icons.check, color: AppColors.primaryOrange)
                           : null,
@@ -552,7 +577,7 @@ class _ScheduleTripInfoScreenState extends State<ScheduleTripInfoScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(city, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            Text(_cityArabicMap[city] ?? city, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
             const SizedBox(width: 4),
             const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 18),
           ],

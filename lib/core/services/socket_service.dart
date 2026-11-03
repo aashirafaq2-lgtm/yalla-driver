@@ -23,6 +23,7 @@ class SocketService {
   Function(dynamic)? onNotification;
   Function(dynamic)? onRideCancelled;
   Function(dynamic)? onNewTripBooking;
+  Function(dynamic)? onManualRequestAssigned;
 
   void connect() async {
     if (_socket != null) {
@@ -107,6 +108,11 @@ class SocketService {
     _socket!.on('ride_cancelled', (data) {
       debugPrint('[Socket] ride_cancelled: $data');
       onRideCancelled?.call(data);
+    });
+
+    _socket!.on('manual_request_assigned', (data) {
+      debugPrint('[Socket] manual_request_assigned: $data');
+      onManualRequestAssigned?.call(data);
     });
 
     _socket!.on('new_trip_booking', (data) {
