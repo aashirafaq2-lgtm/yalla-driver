@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/storage_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -62,9 +64,23 @@ class _SplashScreenState extends State<SplashScreen>
     if (mounted) _logoController.forward();
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) _textController.forward();
-    await Future.delayed(const Duration(milliseconds: 1800));
+    await Future.delayed(const Duration(milliseconds: 1600));
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/welcome');
+      final storage = Provider.of<StorageService>(context, listen: false);
+      String? token;
+      try {
+        token = await storage.getToken().timeout(const Duration(seconds: 4));
+      } catch (error) {
+        debugPrint('[Splash] Could not restore saved driver session: $error');
+      }
+      final hasSession = token != null && token.isNotEmpty;
+      if (!mounted) return;
+
+      if (hasSession) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/welcome');
+      }
     }
   }
 
