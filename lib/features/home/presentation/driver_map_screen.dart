@@ -58,6 +58,31 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
 
   void _initSocketListeners() {
     final socketService = Provider.of<SocketService>(context, listen: false);
+    socketService.onManualRequestAssigned = (data) {
+      if (!mounted) return;
+      SoundService().playRideRequest();
+      NotificationService.showNotification(
+        id: NotificationService.idRideRequest,
+        title: 'طلب جديد مخصص لك من الإدارة!',
+        body: '${data['pickup'] ?? data['pickupName'] ?? 'Pickup'} -> ${data['dropoff'] ?? data['dropName'] ?? 'Destination'}',
+        payload: jsonEncode(data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{}),
+      );
+      final mappedData = {
+        'id': data['requestId'] ?? data['id'],
+        'rideId': data['requestId'] ?? data['id'],
+        'passengerName': data['customerName'] ?? data['passengerName'] ?? 'Customer',
+        'passengerPhone': data['customerPhone'] ?? data['passengerPhone'] ?? '',
+        'pickupName': data['pickup'] ?? data['pickupName'] ?? 'Pickup',
+        'dropName': data['dropoff'] ?? data['dropName'] ?? 'Destination',
+        'estimatedPrice': data['price'] ?? data['estimatedPrice'] ?? 15000,
+        'category': data['category'] ?? 'RIDE',
+        'type': data['rideType'] ?? data['category'] ?? 'FIND_TRIP',
+        'isManualAssigned': true,
+      };
+      setState(() => _pendingRideRequest = mappedData);
+      _showRideRequestSheet(mappedData);
+    };
+
     socketService.onNewRideRequest = (data) {
       if (!mounted) return;
 
