@@ -426,10 +426,24 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       builder: (ctx) => _IncomingRideModal(
         data: data,
         onAccept: (rideId) => _acceptRide(ctx, rideId, data),
-        onDecline: () {
+        onDecline: () async {
           SoundService().stopRingtone();
           if (Navigator.of(ctx).canPop()) Navigator.pop(ctx);
           setState(() => _pendingRideRequest = null);
+          if (data is Map && data['isManualAssigned'] == true) {
+            try {
+              final api = Provider.of<ApiService>(context, listen: false);
+              final storage = Provider.of<StorageService>(context, listen: false);
+              final token = await storage.getToken();
+              if (token != null) {
+                final reqId = (data['id'] ?? data['requestId'] ?? '').toString();
+                final cat = (data['category'] ?? 'RIDE').toString();
+                await api.respondToManualRequest(reqId, accept: false, category: cat, token: token);
+              }
+            } catch (e) {
+              debugPrint('Decline manual request note: $e');
+            }
+          }
         },
       ),
     ).whenComplete(() {
@@ -452,9 +466,13 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       }
       return;
     }
-    final isParcel = data is Map && data['isParcel'] == true;
+    final isManual = data is Map && data['isManualAssigned'] == true;
+    final isParcel = data is Map && (data['isParcel'] == true || data['category'] == 'PARCEL');
     try {
-      if (isParcel) {
+      if (isManual) {
+        final cat = (data['category'] ?? (isParcel ? 'PARCEL' : 'RIDE')).toString();
+        await api.respondToManualRequest(rideId, accept: true, category: cat, token: token);
+      } else if (isParcel) {
         await api.acceptParcel(rideId, token);
       } else {
         await api.acceptRide(rideId, token);

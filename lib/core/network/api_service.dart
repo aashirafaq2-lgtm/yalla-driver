@@ -281,6 +281,11 @@ class ApiService {
   Future<Response> markNotificationsRead(String token) async {
     return await dio.patch('/user/notifications/mark-read', options: Options(headers: {'Authorization': 'Bearer $token'}));
   }
+
+  Future<Response> respondToManualRequest(String id, {required bool accept, required String category, required String token}) async {
+    return await dio.post('/driver/manual-requests/' + id + '/respond',
+      data: {'accept': accept, 'category': category},
+      options: Options(headers: {'Authorization': 'Bearer ' + token}),
+    );
+  }
 }
-
-
