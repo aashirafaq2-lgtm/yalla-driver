@@ -9,7 +9,6 @@ import '../../rides/presentation/scheduled_trips_screen.dart';
 import '../../rides/presentation/trip_ongoing_screen.dart';
 import '../../profile/presentation/profile_screen.dart';
 import 'driver_map_screen.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -117,10 +116,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
       behavior: HitTestBehavior.opaque,
-      child: BounceInUp(
-        duration: const Duration(milliseconds: 800),
-        delay: Duration(milliseconds: index * 100),
-        child: AnimatedContainer(
+      child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           width: 100,
           child: Column(
@@ -145,7 +141,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -168,9 +163,7 @@ class HomeDashboardContent extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const SizedBox(width: 48), // Balance for language button
-                ElasticIn(
-                  duration: const Duration(milliseconds: 1000),
-                  child: Row(
+                Row(
                     children: [
                       Text(
                         isArabic ? 'يَلَّا ' : 'Yalla ',
@@ -192,7 +185,6 @@ class HomeDashboardContent extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
                 // Language Dropdown Pill
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -231,8 +223,7 @@ class HomeDashboardContent extends StatelessWidget {
           ),
           const SizedBox(height: 15),
           // Online Status Badge Bar
-          FadeInDown(
-            child: Container(
+          Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
@@ -291,7 +282,6 @@ class HomeDashboardContent extends StatelessWidget {
                 ],
               ),
             ),
-          ),
           const SizedBox(height: 15),
           Expanded(
             child: ListView(
@@ -313,9 +303,7 @@ class HomeDashboardContent extends StatelessWidget {
                     if (status == 'ARRIVED') statusText = locale.tr('arrived_at_pickup');
                     if (status == 'IN_PROGRESS' || status == 'PICKED_UP') statusText = locale.tr('trip_in_progress');
 
-                    return FadeInDown(
-                      duration: const Duration(milliseconds: 400),
-                      child: Container(
+                    return Container(
                         margin: const EdgeInsets.only(bottom: 20),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -461,9 +449,8 @@ class HomeDashboardContent extends StatelessWidget {
                             ),
                           ],
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
                 ),
                 _buildMenuCard(
                   context,
@@ -516,11 +503,9 @@ class HomeDashboardContent extends StatelessWidget {
     int delay = 0,
     bool isArabic = false,
   }) {
-    return FadeInUp(
-      delay: Duration(milliseconds: delay),
-      child: GestureDetector(
-        onTap: () => Navigator.pushNamed(context, route),
-        child: Container(
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Container(
           margin: const EdgeInsets.only(bottom: 20),
           height: 160,
           decoration: BoxDecoration(
@@ -628,7 +613,6 @@ class HomeDashboardContent extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }
