@@ -71,6 +71,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           'otp': r['otp'] ?? '',
           'isTripMode': false,
         });
+      } else {
+        // Clear active ride if no active ride returned from backend
+        activeRideProv.clearActiveRide();
       }
     } catch (e) {
       debugPrint('[Home] Note checking active ride: $e');
