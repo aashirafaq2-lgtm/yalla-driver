@@ -266,6 +266,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
             'cardIdBase64': cardIdBase64,
             'carImageBase64': carImageBase64,
             'driverFaceBase64': driverFaceBase64,
+            'licenseBase64': args?['licenseBase64'] ?? '',
           },
         );
       }

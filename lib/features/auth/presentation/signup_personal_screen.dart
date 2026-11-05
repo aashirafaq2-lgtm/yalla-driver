@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
 import 'dart:io';
+import 'dart:convert';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/auth_screen_layout.dart';
 import '../../../core/widgets/iq_widgets.dart';
@@ -288,6 +289,7 @@ class _SignUpPersonalScreenState extends State<SignUpPersonalScreen> {
               'email': _emailController.text.trim(),
               'dob': _selectedDOB?.toIso8601String(),
               'age': _calculatedAge,
+              'licenseBase64': _licenseImageBytes != null ? base64Encode(_licenseImageBytes!) : '',
             },
           );
         },

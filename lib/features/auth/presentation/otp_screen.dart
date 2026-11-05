@@ -106,6 +106,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 cardIdImage: args['cardIdBase64'] ?? '',
                 carImage: args['carImageBase64'] ?? '',
                 driverFaceImage: args['driverFaceBase64'] ?? '',
+                licenseImage: args['licenseBase64'] ?? '',
                 token: token,
               );
               hasSubmittedDocuments = true;

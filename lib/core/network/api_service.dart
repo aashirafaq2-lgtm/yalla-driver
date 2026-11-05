@@ -53,6 +53,7 @@ class ApiService {
     required String cardIdImage,
     required String carImage,
     required String driverFaceImage,
+    String? licenseImage,
     required String token,
   }) async {
     return await dio.post('/driver/documents',
@@ -60,6 +61,7 @@ class ApiService {
         'cardIdImage': cardIdImage,
         'carImage': carImage,
         'driverFaceImage': driverFaceImage,
+        'licenseImage': licenseImage ?? '',
       },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
