@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/providers/driver_locale_provider.dart';
 import '../../../core/providers/active_ride_provider.dart';
 import 'available_trip_details_screen.dart';
+import 'trip_rejected_screen.dart';
 import 'trip_ongoing_screen.dart';
 
 class AvailableTripsScreen extends StatefulWidget {
@@ -204,19 +203,16 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Trip accepted successfully!'),
+          content: Text('Trip accepted! Passenger notified.'),
           backgroundColor: Color(0xFF22C55E),
         ),
       );
 
-      // Open detail/live screen
+      // Open live map tracking screen (TripOngoingScreen)
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => AvailableTripDetailsScreen(
-            tripData: trip,
-            isEntireCar: widget.isOutsideIraq,
-          ),
+          builder: (_) => TripOngoingScreen(tripData: trip),
         ),
       );
     } catch (e) {
@@ -236,10 +232,12 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
       setState(() {
         trip['status'] = 'REJECTED';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Trip rejected.'),
-          backgroundColor: Color(0xFFDC2626),
+
+      // Navigate to dedicated Trip Rejected screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TripRejectedScreen(tripData: trip),
         ),
       );
     } catch (e) {
