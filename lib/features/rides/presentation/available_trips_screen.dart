@@ -72,8 +72,18 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
         );
         if (res.statusCode == 200 && res.data != null && res.data['rides'] != null) {
           final List<dynamic> raw = res.data['rides'];
+          // If this screen is Book Entire Car (isOutsideIraq = true), show only ENTIRE_CAR requests;
+          // Otherwise, show standard Find a Trip requests.
+          final filtered = raw.where((r) {
+            final isEntireCar = (r['polyline']?.toString() == 'ENTIRE_CAR') ||
+                                (r['bookingType']?.toString() == 'PRIVATE_CAR') ||
+                                (r['requestType']?.toString() == 'ENTIRE_CAR') ||
+                                (r['carType'] != null && r['carType'].toString().isNotEmpty && r['polyline'] == 'ENTIRE_CAR');
+            return widget.isOutsideIraq ? isEntireCar : !isEntireCar;
+          }).toList();
+
           setState(() {
-            _tripsList = raw.map<Map<String, dynamic>>((r) {
+            _tripsList = filtered.map<Map<String, dynamic>>((r) {
               final passenger = r['passenger'] ?? {};
               final name = '${passenger['firstName'] ?? ''} ${passenger['lastName'] ?? ''}'.trim();
               return {
@@ -85,7 +95,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                 'date': _fmtDate(r['requestedAt'] ?? r['createdAt']),
                 'time': _fmtTime(r['requestedAt'] ?? r['createdAt']),
                 'price': _fmtPrice(r['finalPrice'] ?? r['estimatedPrice']),
-                'seats': (r['seats'] ?? 1).toString(),
+                'seats': (r['seats'] ?? (widget.isOutsideIraq ? '1 Car' : 1)).toString(),
                 'status': r['status'] ?? 'REQUESTED',
                 'cancelReason': r['cancelReason'],
                 'cancelSource': r['cancelSource'],
@@ -93,6 +103,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                 'pickupLng': r['pickupLng'],
                 'dropLat': r['dropLat'],
                 'dropLng': r['dropLng'],
+                'isEntireCar': widget.isOutsideIraq,
               };
             }).toList();
             _isLoading = false;
@@ -548,7 +559,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                             height: 32,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFF7A00),
+                                backgroundColor: widget.isOutsideIraq ? const Color(0xFF6B21A8) : const Color(0xFFFF7A00),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
