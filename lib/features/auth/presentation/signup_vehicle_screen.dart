@@ -191,7 +191,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
     );
   }
 
-  Future<void> _handleNext(String? phone, String? fullName) async {
+  Future<void> _handleNext(String? phone, String? fullName, [Map<String, dynamic>? args]) async {
     final locale = Provider.of<DriverLocaleProvider>(context, listen: false);
     if (_vehicleNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(locale.tr('val_enter_car_name'))));
@@ -297,7 +297,7 @@ class _SignUpVehicleScreenState extends State<SignUpVehicleScreen> {
       onBack: () => Navigator.pop(context),
       bottomButton: IQButton(
         label: _isLoading ? locale.tr('initializing') : locale.tr('next'),
-        onTap: () => _handleNext(phone, fullName),
+        onTap: () => _handleNext(phone, fullName, args),
       ),
       child: Column(
         children: [
