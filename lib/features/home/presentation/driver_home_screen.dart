@@ -457,13 +457,19 @@ class DriverHomeDashboardContent extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
                 child: Image.asset(
-                  'assets/images/driver_hero_banner.png',
+                  'assets/images/driver_hero_banner_hd.png',
                   fit: BoxFit.cover,
                   width: double.infinity,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: const Color(0xFFFFF7ED),
-                    child: const Center(
-                      child: Icon(Icons.directions_car_rounded, size: 40, color: Color(0xFFFF7A00)),
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (context, error, stackTrace) => Image.asset(
+                    'assets/images/driver_hero_banner.png',
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: const Color(0xFFFFF7ED),
+                      child: const Center(
+                        child: Icon(Icons.directions_car_rounded, size: 40, color: Color(0xFFFF7A00)),
+                      ),
                     ),
                   ),
                 ),
@@ -488,7 +494,8 @@ class DriverHomeDashboardContent extends StatelessWidget {
                 child: _DriverServiceGridCard(
                   title: isArabic ? 'الرحلات المتاحة' : 'Available Trips',
                   subtitle: isArabic ? 'ابحث وانضم للرحلات المتاحة الآن' : 'Find and join available trips now',
-                  imagePath: 'assets/images/ic_available_trips.png',
+                  imagePath: 'assets/images/ic_available_trips_hd.png',
+                  fallbackImagePath: 'assets/images/ic_available_trips.png',
                   bgColor: const Color(0xFFFFF8F1), // Warm Peach Tint
                   borderColor: const Color(0xFFFFEDD5),
                   isArabic: isArabic,
@@ -508,7 +515,8 @@ class DriverHomeDashboardContent extends StatelessWidget {
                 child: _DriverServiceGridCard(
                   title: isArabic ? 'جدولة رحلة' : 'Schedule Trips',
                   subtitle: isArabic ? 'احجز رحلة لموعد لاحق' : 'Book a trip for a later date',
-                  imagePath: 'assets/images/ic_schedule_trips.png',
+                  imagePath: 'assets/images/ic_schedule_trips_hd.png',
+                  fallbackImagePath: 'assets/images/ic_schedule_trips.png',
                   bgColor: const Color(0xFFF9F7FF), // Soft Lilac Tint
                   borderColor: const Color(0xFFEDE9FE),
                   isArabic: isArabic,
@@ -528,7 +536,8 @@ class DriverHomeDashboardContent extends StatelessWidget {
                 child: _DriverServiceGridCard(
                   title: isArabic ? 'البريد والطرود' : 'Mail or Parcel',
                   subtitle: isArabic ? 'أرسل واستلم الطرود بين المحافظات' : 'Send packages between provinces',
-                  imagePath: 'assets/images/ic_mail_parcel.png',
+                  imagePath: 'assets/images/ic_mail_parcel_hd.png',
+                  fallbackImagePath: 'assets/images/ic_mail_parcel.png',
                   bgColor: const Color(0xFFF3F8FF), // Soft Sky Tint
                   borderColor: const Color(0xFFDBEAFE),
                   isArabic: isArabic,
@@ -548,7 +557,8 @@ class DriverHomeDashboardContent extends StatelessWidget {
                 child: _DriverServiceGridCard(
                   title: isArabic ? 'حجز سيارة كاملة' : 'Book Entire Car',
                   subtitle: isArabic ? 'احجز سيارة بالكامل لرحلتك' : 'Reserve a whole car for your trip',
-                  imagePath: 'assets/images/ic_book_entire_car.png',
+                  imagePath: 'assets/images/ic_book_entire_car_hd.png',
+                  fallbackImagePath: 'assets/images/ic_book_entire_car.png',
                   bgColor: const Color(0xFFF4FDF6), // Soft Mint Tint
                   borderColor: const Color(0xFFDCFCE7),
                   isArabic: isArabic,
@@ -573,6 +583,7 @@ class _DriverServiceGridCard extends StatefulWidget {
   final String title;
   final String subtitle;
   final String imagePath;
+  final String? fallbackImagePath;
   final Color bgColor;
   final Color borderColor;
   final bool isArabic;
@@ -582,6 +593,7 @@ class _DriverServiceGridCard extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.imagePath,
+    this.fallbackImagePath,
     required this.bgColor,
     required this.borderColor,
     required this.isArabic,
@@ -626,15 +638,30 @@ class _DriverServiceGridCardState extends State<_DriverServiceGridCard> {
             children: [
               // Top 3D / Graphic Illustration
               SizedBox(
-                height: 48,
+                height: 52,
                 child: Image.asset(
                   widget.imagePath,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.directions_car_rounded,
-                    size: 38,
-                    color: Color(0xFFFF7A00),
-                  ),
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (context, error, stackTrace) {
+                    if (widget.fallbackImagePath != null) {
+                      return Image.asset(
+                        widget.fallbackImagePath!,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.directions_car_rounded,
+                          size: 38,
+                          color: Color(0xFFFF7A00),
+                        ),
+                      );
+                    }
+                    return const Icon(
+                      Icons.directions_car_rounded,
+                      size: 38,
+                      color: Color(0xFFFF7A00),
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: 8),

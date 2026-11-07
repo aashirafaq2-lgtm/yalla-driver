@@ -38,12 +38,30 @@ class _AvailableTripDetailsScreenState extends State<AvailableTripDetailsScreen>
   }
 
   Future<void> _openNavigation(double lat, double lng) async {
-    final googleMapsUrl = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
-    final webUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
-    if (await canLaunchUrl(googleMapsUrl)) {
-      await launchUrl(googleMapsUrl);
-    } else if (await canLaunchUrl(webUrl)) {
-      await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+    // 1. First priority: navigate directly inside Yalla app to live GPS tracking screen
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TripOngoingScreen(tripData: widget.tripData),
+        ),
+      );
+    } catch (_) {}
+
+    // 2. Also attempt external turn-by-turn map app in background/overlay if user desires
+    try {
+      final googleMapsUrl = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+      final geoUrl = Uri.parse('geo:$lat,$lng?q=$lat,$lng(Pickup)');
+      final webUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
+      if (await canLaunchUrl(googleMapsUrl)) {
+        await launchUrl(googleMapsUrl);
+      } else if (await canLaunchUrl(geoUrl)) {
+        await launchUrl(geoUrl);
+      } else if (await canLaunchUrl(webUrl)) {
+        await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Navigation launcher note: $e');
     }
   }
 

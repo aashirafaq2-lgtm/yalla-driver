@@ -63,7 +63,8 @@ class ScheduleTripsHubScreen extends StatelessWidget {
                   subtitle: isArabic
                       ? 'أضف جدول رحلة جديد ليتمكن الركاب من الحجز.'
                       : 'Add a new trip schedule for passengers to book.',
-                  iconPath: 'assets/images/ic_publish_trips.png',
+                  iconPath: 'assets/images/ic_publish_trips_hd.png',
+                  fallbackIconPath: 'assets/images/ic_publish_trips.png',
                   fallbackIcon: Icons.calendar_today_rounded,
                   fallbackColor: const Color(0xFFFF7A00),
                   isArabic: isArabic,
@@ -92,7 +93,8 @@ class ScheduleTripsHubScreen extends StatelessWidget {
                   subtitle: isArabic
                       ? 'عرض وإدارة جداول رحلاتك المنشورة.'
                       : 'View and manage your published trip schedules.',
-                  iconPath: 'assets/images/ic_manage_scheduled_trips.png',
+                  iconPath: 'assets/images/ic_manage_scheduled_trips_hd.png',
+                  fallbackIconPath: 'assets/images/ic_manage_scheduled_trips.png',
                   fallbackIcon: Icons.event_note_rounded,
                   fallbackColor: const Color(0xFF7E22CE),
                   isArabic: isArabic,
@@ -121,6 +123,7 @@ class ScheduleTripsHubScreen extends StatelessWidget {
     required String title,
     required String subtitle,
     required String iconPath,
+    String? fallbackIconPath,
     required IconData fallbackIcon,
     required Color fallbackColor,
     required bool isArabic,
@@ -158,11 +161,26 @@ class ScheduleTripsHubScreen extends StatelessWidget {
               child: Image.asset(
                 iconPath,
                 fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  fallbackIcon,
-                  size: 40,
-                  color: fallbackColor,
-                ),
+                filterQuality: FilterQuality.high,
+                errorBuilder: (context, error, stackTrace) {
+                  if (fallbackIconPath != null) {
+                    return Image.asset(
+                      fallbackIconPath,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (_, __, ___) => Icon(
+                        fallbackIcon,
+                        size: 40,
+                        color: fallbackColor,
+                      ),
+                    );
+                  }
+                  return Icon(
+                    fallbackIcon,
+                    size: 40,
+                    color: fallbackColor,
+                  );
+                },
               ),
             ),
             const SizedBox(width: 16),
