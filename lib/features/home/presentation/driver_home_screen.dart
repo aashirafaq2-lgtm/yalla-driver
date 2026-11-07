@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/widgets/iq_header.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:animate_do/animate_do.dart';
+
 import '../../../../core/providers/active_ride_provider.dart';
 import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/providers/driver_locale_provider.dart';
-import '../../rides/presentation/available_trips_screen.dart';
-import '../../rides/presentation/scheduled_trips_screen.dart';
-import '../../rides/presentation/trip_ongoing_screen.dart';
-import '../../profile/presentation/profile_screen.dart';
-import 'driver_map_screen.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-
 import '../../../../core/network/api_service.dart';
 import '../../../../core/services/storage_service.dart';
+
+import '../../rides/presentation/available_trips_screen.dart';
+import '../../rides/presentation/scheduled_trips_screen.dart';
+import '../../rides/presentation/mail_parcels_screen.dart';
+import '../../rides/presentation/trip_ongoing_screen.dart';
+import '../../profile/presentation/profile_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -26,8 +27,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const HomeDashboardContent(),
-    const DriverMapScreen(),
+    const DriverHomeDashboardContent(),
     const ProfileScreen(),
   ];
 
@@ -71,11 +71,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           'isTripMode': false,
         });
       } else {
-        // Clear active ride if no active ride returned from backend
         activeRideProv.clearActiveRide();
       }
     } catch (e) {
-      debugPrint('[Home] Note checking active ride: $e');
+      debugPrint('[DriverHome] Active ride check error: $e');
     }
   }
 
@@ -91,528 +90,615 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         children: _pages,
       ),
       bottomNavigationBar: Container(
-        height: 100,
         decoration: BoxDecoration(
-          color: AppColors.primaryOrange.withOpacity(0.9),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(35)),
+          color: Colors.white,
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 15, offset: const Offset(0, -5)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 15,
+              offset: const Offset(0, -3),
+            ),
           ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildNavItem(0, Icons.home_filled, locale.tr('home'), isArabic),
-            _buildNavItem(1, Icons.directions_car_rounded, locale.tr('rides'), isArabic),
-            _buildNavItem(2, Icons.person, locale.tr('profile'), isArabic),
-          ],
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(
+                  index: 0,
+                  icon: Icons.home_rounded,
+                  label: isArabic ? 'الرئيسية' : 'Home',
+                  isSelected: _selectedIndex == 0,
+                  isArabic: isArabic,
+                ),
+                _buildNavItem(
+                  index: 1,
+                  icon: Icons.person_outline_rounded,
+                  label: isArabic ? 'حسابي' : 'Profile',
+                  isSelected: _selectedIndex == 1,
+                  isArabic: isArabic,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label, bool isArabic) {
-    bool isSelected = _selectedIndex == index;
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required bool isArabic,
+  }) {
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: 100,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 34,
-                color: isSelected ? Colors.white : Colors.black87,
-              ),
-              const SizedBox(height: 5),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                  color: isSelected ? Colors.white : Colors.black87,
-                  fontSize: isArabic ? 13 : 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFFF3EB) : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
         ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 26,
+              color: isSelected ? const Color(0xFFFF7A00) : const Color(0xFF1E293B),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? const Color(0xFFFF7A00) : const Color(0xFF1E293B),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class HomeDashboardContent extends StatelessWidget {
-  const HomeDashboardContent({super.key});
+class DriverHomeDashboardContent extends StatelessWidget {
+  const DriverHomeDashboardContent({super.key});
 
   @override
   Widget build(BuildContext context) {
     final locale = Provider.of<DriverLocaleProvider>(context);
     final isArabic = locale.isArabic;
+    final auth = Provider.of<AuthProvider>(context);
 
     return SafeArea(
-      child: Column(
+      child: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
         children: [
-          const SizedBox(height: 15),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+          // ── Top Header Row: Logo & Language Toggle ────────────────────────
+          FadeInDown(
+            duration: const Duration(milliseconds: 400),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(width: 48), // Balance for language button
+                const SizedBox(width: 80), // Balance center logo
+                // Yalla Logo
                 Row(
-                    children: [
-                      Text(
-                        isArabic ? 'يَلَّا ' : 'Yalla ',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: isArabic ? AppColors.primaryOrange : Colors.black,
-                          fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                        ),
-                        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Yalla',
+                      style: GoogleFonts.outfit(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF0F172A),
                       ),
-                      Text(
-                        isArabic ? 'YALLA' : 'يَلَّا',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: isArabic ? Colors.black : AppColors.primaryOrange,
-                        ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'يَلَّا',
+                      style: GoogleFonts.notoKufiArabic(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFFFF7A00),
                       ),
-                    ],
-                  ),
-                // Language Dropdown Pill
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.black12),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2)),
-                    ],
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: isArabic ? 'ar' : 'en',
-                      isDense: true,
-                      icon: const Icon(Icons.language, size: 16, color: AppColors.primaryOrange),
-                      borderRadius: BorderRadius.circular(12),
-                      items: [
-                        DropdownMenuItem(
-                          value: 'ar',
-                          child: Text('العربية', style: GoogleFonts.notoKufiArabic(fontSize: 12, fontWeight: FontWeight.bold)),
-                        ),
-                        DropdownMenuItem(
-                          value: 'en',
-                          child: Text('English', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                // Language Pill
+                GestureDetector(
+                  onTap: () {
+                    locale.toggleLocale();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
-                      onChanged: (lang) {
-                        if (lang != null) locale.setLocale(Locale(lang));
-                      },
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isArabic ? 'العربية' : 'English',
+                          style: TextStyle(
+                            fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Icon(
+                          Icons.language_rounded,
+                          size: 16,
+                          color: Color(0xFFFF7A00),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 15),
-          // Online Status Badge Bar
-          Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          const SizedBox(height: 14),
+
+          // ── Driver Status Toggle Bar ──────────────────────────────────────
+          FadeInDown(
+            delay: const Duration(milliseconds: 100),
+            duration: const Duration(milliseconds: 450),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black12),
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: const Color(0xFFBBF7D0), width: 1.2),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+                  BoxShadow(
+                    color: const Color(0xFF22C55E).withOpacity(0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
                 ],
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF22C55E),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: Color(0x8822C55E), blurRadius: 8, spreadRadius: 2),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        locale.tr('you_are_online'),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: isArabic ? 14 : 13,
-                          color: Colors.black87,
-                          letterSpacing: isArabic ? 0 : 0.5,
-                          fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                        ),
-                      ),
-                    ],
-                  ),
+                  // Green Car Icon in rounded container
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
-                      color: AppColors.primaryOrange.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF86EFAC)),
                     ),
-                    child: Text(
-                      locale.tr('ready_for_rides'),
-                      style: TextStyle(
-                        color: AppColors.primaryOrange,
-                        fontWeight: FontWeight.bold,
-                        fontSize: isArabic ? 12 : 12,
-                        fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                      ),
+                    child: const Icon(
+                      Icons.directions_car_filled_rounded,
+                      color: Color(0xFF22C55E),
+                      size: 22,
                     ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Texts
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isArabic ? 'حالة السائق' : 'Driver Status',
+                          style: TextStyle(
+                            fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          isArabic ? 'فعّل لاستقبال طلبات الرحلات' : 'Turn on to receive trip requests',
+                          style: TextStyle(
+                            fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                            fontSize: 10.5,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Online/Offline label & Switch
+                  Text(
+                    auth.isOnline
+                        ? (isArabic ? 'متصل' : 'Online')
+                        : (isArabic ? 'غير متصل' : 'Offline'),
+                    style: TextStyle(
+                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: auth.isOnline ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  CupertinoSwitch(
+                    value: auth.isOnline,
+                    activeColor: const Color(0xFF22C55E),
+                    onChanged: (val) {
+                      auth.toggleStatus();
+                    },
                   ),
                 ],
               ),
             ),
-          const SizedBox(height: 15),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-              children: [
-                // Active Ride Banner
-                Consumer<ActiveRideProvider>(
-                  builder: (context, rideProv, child) {
-                    final ride = rideProv.activeRide;
-                    if (ride == null) return const SizedBox.shrink();
+          ),
+          const SizedBox(height: 12),
 
-                    final passengerName = ride['name'] ?? (isArabic ? 'الراكب' : 'Passenger');
-                    final from = ride['from'] ?? (isArabic ? 'نقطة الانطلاق' : 'Pickup');
-                    final to = ride['to'] ?? (isArabic ? 'الوجهة' : 'Destination');
-                    final price = ride['price'] ?? '10,000 IQD';
-                    final status = ride['status'] ?? 'ACCEPTED';
+          // ── Active Ride Card (if any ongoing trip) ────────────────────────
+          Consumer<ActiveRideProvider>(
+            builder: (context, rideProv, _) {
+              final ride = rideProv.activeRide;
+              if (ride == null) return const SizedBox.shrink();
 
-                    String statusText = locale.tr('driving_to_passenger');
-                    if (status == 'ARRIVED') statusText = locale.tr('arrived_at_pickup');
-                    if (status == 'IN_PROGRESS' || status == 'PICKED_UP') statusText = locale.tr('trip_in_progress');
+              final passengerName = ride['name'] ?? (isArabic ? 'الراكب' : 'Passenger');
+              final from = ride['from'] ?? (isArabic ? 'نقطة الانطلاق' : 'Pickup');
+              final to = ride['to'] ?? (isArabic ? 'الوجهة' : 'Destination');
+              final price = ride['price'] ?? '10,000 IQD';
 
-                    return Container(
-                        margin: const EdgeInsets.only(bottom: 20),
-                        padding: const EdgeInsets.all(16),
+              return FadeInDown(
+                duration: const Duration(milliseconds: 400),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFFF7A00), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF7A00).withOpacity(0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primaryOrange.withOpacity(0.3),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                          border: Border.all(color: AppColors.primaryOrange, width: 1.5),
+                          color: const Color(0xFFFF7A00).withOpacity(0.15),
+                          shape: BoxShape.circle,
                         ),
+                        child: const Icon(Icons.navigation_rounded, color: Color(0xFFFF7A00), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 10,
-                                      height: 10,
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.primaryOrange,
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(color: AppColors.primaryOrange, blurRadius: 6, spreadRadius: 2),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      locale.tr('active_ride'),
-                                      style: GoogleFonts.outfit(
-                                        color: AppColors.primaryOrange,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 13,
-                                        letterSpacing: isArabic ? 0 : 1.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    statusText,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: AppColors.primaryOrange.withOpacity(0.2),
-                                  child: const Icon(Icons.person, color: AppColors.primaryOrange, size: 24),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        passengerName,
-                                        style: GoogleFonts.outfit(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '$from → $to',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                          fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                                        ),
-                                        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  price,
-                                  style: GoogleFonts.outfit(
-                                    color: AppColors.primaryOrange,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 44,
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryOrange,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  elevation: 0,
-                                ),
-                                icon: const Icon(Icons.navigation_rounded, color: Colors.white, size: 20),
-                                label: Text(
-                                  locale.tr('return_to_ride'),
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                                  ),
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => TripOngoingScreen(tripData: ride),
-                                    ),
-                                  );
-                                },
+                            Text(
+                              passengerName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
                               ),
+                            ),
+                            Text(
+                              '$from → $to • $price',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white70, fontSize: 11),
                             ),
                           ],
                         ),
-                      );
-                    },
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF7A00),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => TripOngoingScreen(tripData: ride)),
+                          );
+                        },
+                        child: Text(
+                          isArabic ? 'عرض' : 'View',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                _buildMenuCard(
-                  context,
-                  title: locale.tr('available_trips'),
-                  image: 'assets/images/available_trip.png',
-                  route: '/available_trips',
-                  delay: 0,
-                  isArabic: isArabic,
+              );
+            },
+          ),
+
+          // ── Hero Banner: Car & Road Illustration ───────────────────────────
+          FadeIn(
+            delay: const Duration(milliseconds: 150),
+            duration: const Duration(milliseconds: 500),
+            child: Container(
+              height: 120,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/images/driver_hero_banner.png',
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: const Color(0xFFFFF7ED),
+                    child: const Center(
+                      child: Icon(Icons.directions_car_rounded, size: 40, color: Color(0xFFFF7A00)),
+                    ),
+                  ),
                 ),
-                _buildMenuCard(
-                  context,
-                  title: locale.tr('schedule_trip'),
-                  image: 'assets/images/schedule_trip.png',
-                  route: '/schedule',
-                  delay: 100,
-                  isArabic: isArabic,
-                ),
-                _buildMenuCard(
-                  context,
-                  title: locale.tr('mail_parcel'),
-                  image: 'assets/images/mail_parcel.png',
-                  route: '/mail_parcels',
-                  delay: 200,
-                  isArabic: isArabic,
-                ),
-                _buildMenuCard(
-                  context,
-                  title: locale.tr('booking'),
-                  subtitle: locale.tr('outside_governorate'),
-                  image: 'assets/images/booking.png',
-                  route: '/available_trips_outside',
-                  isBooking: true,
-                  delay: 300,
-                  isArabic: isArabic,
-                ),
-              ],
+              ),
             ),
           ),
+          const SizedBox(height: 16),
+
+          // ── 2x2 Services Grid (Matching Screenshot 100%) ──────────────────
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 14,
+            childAspectRatio: 0.88,
+            children: [
+              // 1. Available Trips (Top-Left)
+              FadeInUp(
+                delay: const Duration(milliseconds: 180),
+                duration: const Duration(milliseconds: 450),
+                child: _DriverServiceGridCard(
+                  title: isArabic ? 'الرحلات المتاحة' : 'Available Trips',
+                  subtitle: isArabic ? 'ابحث وانضم للرحلات المتاحة الآن' : 'Find and join available trips now',
+                  imagePath: 'assets/images/ic_available_trips.png',
+                  bgColor: const Color(0xFFFFF8F1), // Warm Peach Tint
+                  borderColor: const Color(0xFFFFEDD5),
+                  isArabic: isArabic,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AvailableTripsScreen()),
+                    );
+                  },
+                ),
+              ),
+
+              // 2. Schedule Trips (Top-Right)
+              FadeInUp(
+                delay: const Duration(milliseconds: 240),
+                duration: const Duration(milliseconds: 450),
+                child: _DriverServiceGridCard(
+                  title: isArabic ? 'جدولة رحلة' : 'Schedule Trips',
+                  subtitle: isArabic ? 'احجز رحلة لموعد لاحق' : 'Book a trip for a later date',
+                  imagePath: 'assets/images/ic_schedule_trips.png',
+                  bgColor: const Color(0xFFF9F7FF), // Soft Lilac Tint
+                  borderColor: const Color(0xFFEDE9FE),
+                  isArabic: isArabic,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ScheduledTripsScreen()),
+                    );
+                  },
+                ),
+              ),
+
+              // 3. Mail or Parcel (Bottom-Left)
+              FadeInUp(
+                delay: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 450),
+                child: _DriverServiceGridCard(
+                  title: isArabic ? 'البريد والطرود' : 'Mail or Parcel',
+                  subtitle: isArabic ? 'أرسل واستلم الطرود بين المحافظات' : 'Send packages between provinces',
+                  imagePath: 'assets/images/ic_mail_parcel.png',
+                  bgColor: const Color(0xFFF3F8FF), // Soft Sky Tint
+                  borderColor: const Color(0xFFDBEAFE),
+                  isArabic: isArabic,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MailParcelsScreen()),
+                    );
+                  },
+                ),
+              ),
+
+              // 4. Book Entire Car (Bottom-Right)
+              FadeInUp(
+                delay: const Duration(milliseconds: 360),
+                duration: const Duration(milliseconds: 450),
+                child: _DriverServiceGridCard(
+                  title: isArabic ? 'حجز سيارة كاملة' : 'Book Entire Car',
+                  subtitle: isArabic ? 'احجز سيارة بالكامل لرحلتك' : 'Reserve a whole car for your trip',
+                  imagePath: 'assets/images/ic_book_entire_car.png',
+                  bgColor: const Color(0xFFF4FDF6), // Soft Mint Tint
+                  borderColor: const Color(0xFFDCFCE7),
+                  isArabic: isArabic,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AvailableTripsScreen(isOutsideIraq: true)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
         ],
       ),
     );
   }
+}
 
-  Widget _buildMenuCard(BuildContext context, {
-    required String title,
-    String? subtitle,
-    required String image,
-    required String route,
-    bool isBooking = false,
-    int delay = 0,
-    bool isArabic = false,
-  }) {
+class _DriverServiceGridCard extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final String imagePath;
+  final Color bgColor;
+  final Color borderColor;
+  final bool isArabic;
+  final VoidCallback onTap;
+
+  const _DriverServiceGridCard({
+    required this.title,
+    required this.subtitle,
+    required this.imagePath,
+    required this.bgColor,
+    required this.borderColor,
+    required this.isArabic,
+    required this.onTap,
+  });
+
+  @override
+  State<_DriverServiceGridCard> createState() => _DriverServiceGridCardState();
+}
+
+class _DriverServiceGridCardState extends State<_DriverServiceGridCard> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, route),
-      child: Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          height: 160,
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _isPressed = false),
+      child: AnimatedScale(
+        scale: _isPressed ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 140),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            color: widget.bgColor,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: widget.borderColor, width: 1.2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.asset(
-                  image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Top 3D / Graphic Illustration
+              SizedBox(
+                height: 48,
+                child: Image.asset(
+                  widget.imagePath,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.directions_car_rounded,
+                    size: 38,
+                    color: Color(0xFFFF7A00),
                   ),
                 ),
-                // Gradient overlay
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.1),
-                        Colors.black.withOpacity(0.4),
-                      ],
-                    ),
+              ),
+              const SizedBox(height: 8),
+
+              // Title
+              Text(
+                widget.title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: widget.isArabic ? 'NotoKufiArabic' : null,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 3),
+
+              // Subtitle
+              Expanded(
+                child: Text(
+                  widget.subtitle,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: widget.isArabic ? 'NotoKufiArabic' : null,
+                    fontSize: 10.5,
+                    height: 1.25,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF64748B),
                   ),
                 ),
+              ),
 
-                if (isBooking)
-                  Positioned(
-                    top: 0,
-                    left: isArabic ? null : 0,
-                    right: isArabic ? 0 : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryOrange,
-                        borderRadius: BorderRadius.only(
-                          bottomRight: isArabic ? Radius.zero : const Radius.circular(20),
-                          bottomLeft: isArabic ? const Radius.circular(20) : Radius.zero,
-                        ),
+              // Bottom Orange Arrow Button Circle
+              Align(
+                alignment: widget.isArabic ? Alignment.bottomLeft : Alignment.bottomRight,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFF7A00),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x55FF7A00),
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
                       ),
-                      child: Column(
-                        crossAxisAlignment: isArabic ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                            ),
-                            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-                          ),
-                          Row(
-                            children: [
-                              const Icon(Icons.public, size: 14, color: Colors.white),
-                              const SizedBox(width: 4),
-                              Text(
-                                subtitle!,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                  fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
-
-                if (!isBooking)
-                  Center(
-                    child: Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: isArabic ? 'NotoKufiArabic' : null,
-                        shadows: const [
-                          Shadow(color: Colors.black87, blurRadius: 15, offset: Offset(0, 2)),
-                        ],
-                      ),
-                      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-                    ),
+                  child: Icon(
+                    widget.isArabic ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded,
+                    size: 16,
+                    color: Colors.white,
                   ),
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
         ),
+      ),
     );
   }
 }
