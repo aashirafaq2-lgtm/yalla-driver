@@ -12,6 +12,7 @@ import '../../../../core/services/storage_service.dart';
 
 import '../../rides/presentation/available_trips_screen.dart';
 import '../../rides/presentation/scheduled_trips_screen.dart';
+import '../../rides/presentation/schedule_trips_hub_screen.dart';
 import '../../rides/presentation/mail_parcels_screen.dart';
 import '../../rides/presentation/trip_ongoing_screen.dart';
 import '../../profile/presentation/profile_screen.dart';
@@ -515,7 +516,7 @@ class DriverHomeDashboardContent extends StatelessWidget {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const ScheduledTripsScreen()),
+                      MaterialPageRoute(builder: (_) => const ScheduleTripsHubScreen()),
                     );
                   },
                 ),
