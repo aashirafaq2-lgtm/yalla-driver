@@ -337,9 +337,9 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
     // 3. Cancelled by Passenger: red badge with user icon
     // 4. Cancelled by You: soft red/orange badge with car icon
     // 5. Rejected: soft red badge with X
-    final bool isNew = rawStatus == 'NEW_REQUEST' || rawStatus == 'REQUESTED' || rawStatus == 'BROADCASTING' || rawStatus == 'PENDING_ADMIN';
+    final bool isNew = rawStatus == 'NEW_REQUEST' || rawStatus == 'REQUESTED' || rawStatus == 'BROADCASTING' || rawStatus == 'PENDING_ADMIN' || rawStatus == 'ASSIGNED';
     final bool isCompleted = rawStatus == 'COMPLETED';
-    final bool isCancelledByPassenger = rawStatus == 'CANCELLED_PASSENGER' || (rawStatus == 'CANCELLED' && cancelSource == 'PASSENGER');
+    final bool isCancelledByPassenger = rawStatus == 'CANCELLED_PASSENGER' || (rawStatus == 'CANCELLED' && (cancelSource == 'PASSENGER' || cancelSource.isEmpty));
     final bool isCancelledByDriver = rawStatus == 'CANCELLED_DRIVER' || (rawStatus == 'CANCELLED' && cancelSource == 'DRIVER');
     final bool isRejected = rawStatus == 'REJECTED';
 
