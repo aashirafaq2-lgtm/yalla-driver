@@ -211,3 +211,4 @@ class ScheduleTripsHubScreen extends StatelessWidget {
     );
   }
 }
+

@@ -521,3 +521,4 @@ class _AvailableTripDetailsScreenState extends State<AvailableTripDetailsScreen>
     );
   }
 }
+
