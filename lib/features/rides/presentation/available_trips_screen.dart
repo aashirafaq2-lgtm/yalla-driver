@@ -82,33 +82,35 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
             return widget.isOutsideIraq ? isEntireCar : !isEntireCar;
           }).toList();
 
-          setState(() {
-            _tripsList = filtered.map<Map<String, dynamic>>((r) {
-              final passenger = r['passenger'] ?? {};
-              final name = '${passenger['firstName'] ?? ''} ${passenger['lastName'] ?? ''}'.trim();
-              return {
-                'id': r['id']?.toString() ?? '',
-                'name': name.isNotEmpty ? name : 'Passenger',
-                'phone': passenger['phone'] ?? '0770 123 4567',
-                'from': r['pickupName'] ?? 'Kirkuk',
-                'to': r['dropName'] ?? 'Mosul',
-                'date': _fmtDate(r['requestedAt'] ?? r['createdAt']),
-                'time': _fmtTime(r['requestedAt'] ?? r['createdAt']),
-                'price': _fmtPrice(r['finalPrice'] ?? r['estimatedPrice']),
-                'seats': (r['seats'] ?? (widget.isOutsideIraq ? '1 Car' : 1)).toString(),
-                'status': r['status'] ?? 'REQUESTED',
-                'cancelReason': r['cancelReason'],
-                'cancelSource': r['cancelSource'],
-                'pickupLat': r['pickupLat'],
-                'pickupLng': r['pickupLng'],
-                'dropLat': r['dropLat'],
-                'dropLng': r['dropLng'],
-                'isEntireCar': widget.isOutsideIraq,
-              };
-            }).toList();
-            _isLoading = false;
-          });
-          return;
+          if (filtered.isNotEmpty) {
+            setState(() {
+              _tripsList = filtered.map<Map<String, dynamic>>((r) {
+                final passenger = r['passenger'] ?? {};
+                final name = '${passenger['firstName'] ?? ''} ${passenger['lastName'] ?? ''}'.trim();
+                return {
+                  'id': r['id']?.toString() ?? '',
+                  'name': name.isNotEmpty ? name : 'Passenger',
+                  'phone': passenger['phone'] ?? '0770 123 4567',
+                  'from': r['pickupName'] ?? 'Kirkuk',
+                  'to': r['dropName'] ?? 'Mosul',
+                  'date': _fmtDate(r['requestedAt'] ?? r['createdAt']),
+                  'time': _fmtTime(r['requestedAt'] ?? r['createdAt']),
+                  'price': _fmtPrice(r['finalPrice'] ?? r['estimatedPrice']),
+                  'seats': (r['seats'] ?? (widget.isOutsideIraq ? '1 Car' : 1)).toString(),
+                  'status': r['status'] ?? 'REQUESTED',
+                  'cancelReason': r['cancelReason'],
+                  'cancelSource': r['cancelSource'],
+                  'pickupLat': r['pickupLat'],
+                  'pickupLng': r['pickupLng'],
+                  'dropLat': r['dropLat'],
+                  'dropLng': r['dropLng'],
+                  'isEntireCar': widget.isOutsideIraq,
+                };
+              }).toList();
+              _isLoading = false;
+            });
+            return;
+          }
         }
       }
     } catch (e) {
