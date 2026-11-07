@@ -11,7 +11,6 @@ import '../../../../core/network/api_service.dart';
 import '../../../../core/services/storage_service.dart';
 
 import '../../rides/presentation/available_trips_screen.dart';
-import '../../rides/presentation/scheduled_trips_screen.dart';
 import '../../rides/presentation/schedule_trips_hub_screen.dart';
 import '../../rides/presentation/mail_parcels_screen.dart';
 import '../../rides/presentation/trip_ongoing_screen.dart';
