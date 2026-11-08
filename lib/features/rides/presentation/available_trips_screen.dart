@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:provider/provider.dart';
@@ -5,11 +6,14 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/api_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/services/socket_service.dart';
 import '../../../core/providers/driver_locale_provider.dart';
 import '../../../core/providers/active_ride_provider.dart';
 import 'available_trip_details_screen.dart';
 import 'trip_rejected_screen.dart';
 import 'trip_ongoing_screen.dart';
+
+enum TripFilterCategory { all, newRequests, active, completed, cancelled }
 
 class AvailableTripsScreen extends StatefulWidget {
   final bool isOutsideIraq; // If true, Book Entire Car requests
@@ -22,11 +26,23 @@ class AvailableTripsScreen extends StatefulWidget {
 class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _tripsList = [];
+  TripFilterCategory _selectedCategory = TripFilterCategory.all;
 
   @override
   void initState() {
     super.initState();
     _loadTrips();
+    _initSocketListeners();
+  }
+
+  void _initSocketListeners() {
+    try {
+      final socketService = Provider.of<SocketService>(context, listen: false);
+      socketService.onNewRideRequest = (_) => _loadTrips(silent: true);
+      socketService.onManualRequestAssigned = (_) => _loadTrips(silent: true);
+      socketService.onRideCancelled = (_) => _loadTrips(silent: true);
+      socketService.onRideStatusUpdate = (_) => _loadTrips(silent: true);
+    } catch (_) {}
   }
 
   String _fmtDate(dynamic iso) {
@@ -57,23 +73,20 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
     return '$s IQD';
   }
 
-  Future<void> _loadTrips() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadTrips({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
     final api = Provider.of<ApiService>(context, listen: false);
     final storage = Provider.of<StorageService>(context, listen: false);
     final token = await storage.getToken();
 
     try {
       if (token != null) {
-        // Query live backend endpoint
         final res = await api.dio.get(
           '/ride/requests',
           options: Options(headers: {'Authorization': 'Bearer $token'}),
         );
         if (res.statusCode == 200 && res.data != null && res.data['rides'] != null) {
           final List<dynamic> raw = res.data['rides'];
-          // If this screen is Book Entire Car (isOutsideIraq = true), show only ENTIRE_CAR requests;
-          // Otherwise, show standard Find a Trip requests.
           final filtered = raw.where((r) {
             final isEntireCar = (r['polyline']?.toString() == 'ENTIRE_CAR') ||
                                 (r['bookingType']?.toString() == 'PRIVATE_CAR') ||
@@ -83,32 +96,34 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
           }).toList();
 
           if (filtered.isNotEmpty) {
-            setState(() {
-              _tripsList = filtered.map<Map<String, dynamic>>((r) {
-                final passenger = r['passenger'] ?? {};
-                final name = '${passenger['firstName'] ?? ''} ${passenger['lastName'] ?? ''}'.trim();
-                return {
-                  'id': r['id']?.toString() ?? '',
-                  'name': name.isNotEmpty ? name : 'Passenger',
-                  'phone': passenger['phone'] ?? '0770 123 4567',
-                  'from': r['pickupName'] ?? 'Kirkuk',
-                  'to': r['dropName'] ?? 'Mosul',
-                  'date': _fmtDate(r['requestedAt'] ?? r['createdAt']),
-                  'time': _fmtTime(r['requestedAt'] ?? r['createdAt']),
-                  'price': _fmtPrice(r['finalPrice'] ?? r['estimatedPrice']),
-                  'seats': (r['seats'] ?? (widget.isOutsideIraq ? '1 Car' : 1)).toString(),
-                  'status': r['status'] ?? 'REQUESTED',
-                  'cancelReason': r['cancelReason'],
-                  'cancelSource': r['cancelSource'],
-                  'pickupLat': r['pickupLat'],
-                  'pickupLng': r['pickupLng'],
-                  'dropLat': r['dropLat'],
-                  'dropLng': r['dropLng'],
-                  'isEntireCar': widget.isOutsideIraq,
-                };
-              }).toList();
-              _isLoading = false;
-            });
+            if (mounted) {
+              setState(() {
+                _tripsList = filtered.map<Map<String, dynamic>>((r) {
+                  final passenger = r['passenger'] ?? {};
+                  final name = '${passenger['firstName'] ?? ''} ${passenger['lastName'] ?? ''}'.trim();
+                  return {
+                    'id': r['id']?.toString() ?? '',
+                    'name': name.isNotEmpty ? name : 'Passenger',
+                    'phone': passenger['phone'] ?? '0770 123 4567',
+                    'from': r['pickupName'] ?? 'Kirkuk',
+                    'to': r['dropName'] ?? 'Mosul',
+                    'date': _fmtDate(r['requestedAt'] ?? r['createdAt']),
+                    'time': _fmtTime(r['requestedAt'] ?? r['createdAt']),
+                    'price': _fmtPrice(r['finalPrice'] ?? r['estimatedPrice']),
+                    'seats': (r['seats'] ?? (widget.isOutsideIraq ? '1 Car' : 1)).toString(),
+                    'status': r['status'] ?? 'REQUESTED',
+                    'cancelReason': r['cancelReason'],
+                    'cancelSource': r['cancelSource'],
+                    'pickupLat': r['pickupLat'],
+                    'pickupLng': r['pickupLng'],
+                    'dropLat': r['dropLat'],
+                    'dropLng': r['dropLng'],
+                    'isEntireCar': widget.isOutsideIraq,
+                  };
+                }).toList();
+                _isLoading = false;
+              });
+            }
             return;
           }
         }
@@ -117,84 +132,86 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
       debugPrint('Error loading driver requests: $e');
     }
 
-    // High fidelity default fallback items matching Screenshot 2 precisely
-    setState(() {
-      _tripsList = [
-        {
-          'id': 'demo_1',
-          'name': 'Sami Kareem',
-          'phone': '0770 234 5678',
-          'from': 'Kirkuk',
-          'to': 'Mosul',
-          'date': '6 Nov 2026',
-          'time': '07:30 AM',
-          'price': '28,000 IQD',
-          'seats': '1',
-          'status': 'NEW_REQUEST',
-          'pickupLat': 35.468,
-          'pickupLng': 44.392,
-        },
-        {
-          'id': 'demo_2',
-          'name': 'Ahmed Jamil',
-          'phone': '0770 123 4567',
-          'from': 'Kirkuk',
-          'to': 'Mosul',
-          'date': '6 Nov 2026',
-          'time': '08:30 AM',
-          'price': '25,000 IQD',
-          'seats': '1',
-          'status': 'COMPLETED',
-          'pickupLat': 35.468,
-          'pickupLng': 44.392,
-        },
-        {
-          'id': 'demo_3',
-          'name': 'Ali Hassan',
-          'phone': '0770 345 6789',
-          'from': 'Kirkuk',
-          'to': 'Mosul',
-          'date': '6 Nov 2026',
-          'time': '11:00 AM',
-          'price': '30,000 IQD',
-          'seats': '1',
-          'status': 'CANCELLED_PASSENGER',
-          'cancelSource': 'PASSENGER',
-          'pickupLat': 35.468,
-          'pickupLng': 44.392,
-        },
-        {
-          'id': 'demo_4',
-          'name': 'Omar Saleh',
-          'phone': '0770 456 7890',
-          'from': 'Kirkuk',
-          'to': 'Sulaymaniyah',
-          'date': '6 Nov 2026',
-          'time': '02:00 PM',
-          'price': '45,000 IQD',
-          'seats': '2',
-          'status': 'CANCELLED_DRIVER',
-          'cancelSource': 'DRIVER',
-          'pickupLat': 35.468,
-          'pickupLng': 44.392,
-        },
-        {
-          'id': 'demo_5',
-          'name': 'Hassan Ali',
-          'phone': '0770 567 8901',
-          'from': 'Erbil',
-          'to': 'Baghdad',
-          'date': '5 Nov 2026',
-          'time': '09:00 AM',
-          'price': '35,000 IQD',
-          'seats': '1',
-          'status': 'REJECTED',
-          'pickupLat': 36.190,
-          'pickupLng': 44.008,
-        },
-      ];
-      _isLoading = false;
-    });
+    // High fidelity default items matching Screenshot 2 precisely
+    if (mounted) {
+      setState(() {
+        _tripsList = [
+          {
+            'id': 'demo_1',
+            'name': 'Sami Kareem',
+            'phone': '0770 234 5678',
+            'from': 'Kirkuk',
+            'to': 'Mosul',
+            'date': '6 Nov 2026',
+            'time': '07:30 AM',
+            'price': '28,000 IQD',
+            'seats': '1',
+            'status': 'NEW_REQUEST',
+            'pickupLat': 35.468,
+            'pickupLng': 44.392,
+          },
+          {
+            'id': 'demo_2',
+            'name': 'Ahmed Jamil',
+            'phone': '0770 123 4567',
+            'from': 'Kirkuk',
+            'to': 'Mosul',
+            'date': '6 Nov 2026',
+            'time': '08:30 AM',
+            'price': '25,000 IQD',
+            'seats': '1',
+            'status': 'COMPLETED',
+            'pickupLat': 35.468,
+            'pickupLng': 44.392,
+          },
+          {
+            'id': 'demo_3',
+            'name': 'Ali Hassan',
+            'phone': '0770 345 6789',
+            'from': 'Kirkuk',
+            'to': 'Mosul',
+            'date': '6 Nov 2026',
+            'time': '11:00 AM',
+            'price': '30,000 IQD',
+            'seats': '1',
+            'status': 'CANCELLED_PASSENGER',
+            'cancelSource': 'PASSENGER',
+            'pickupLat': 35.468,
+            'pickupLng': 44.392,
+          },
+          {
+            'id': 'demo_4',
+            'name': 'Omar Saleh',
+            'phone': '0770 456 7890',
+            'from': 'Kirkuk',
+            'to': 'Sulaymaniyah',
+            'date': '6 Nov 2026',
+            'time': '02:00 PM',
+            'price': '45,000 IQD',
+            'seats': '2',
+            'status': 'CANCELLED_DRIVER',
+            'cancelSource': 'DRIVER',
+            'pickupLat': 35.468,
+            'pickupLng': 44.392,
+          },
+          {
+            'id': 'demo_5',
+            'name': 'Hassan Ali',
+            'phone': '0770 567 8901',
+            'from': 'Erbil',
+            'to': 'Baghdad',
+            'date': '5 Nov 2026',
+            'time': '09:00 AM',
+            'price': '35,000 IQD',
+            'seats': '1',
+            'status': 'REJECTED',
+            'pickupLat': 36.190,
+            'pickupLng': 44.008,
+          },
+        ];
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _acceptRide(Map<String, dynamic> trip) async {
@@ -206,12 +223,10 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
       if (token != null && !trip['id'].toString().startsWith('demo_')) {
         await api.acceptRide(trip['id'], token);
       }
-      // Update local state to COMPLETED/ACCEPTED
       setState(() {
-        trip['status'] = 'COMPLETED';
+        trip['status'] = 'ACCEPTED';
       });
 
-      // Update active ride
       Provider.of<ActiveRideProvider>(context, listen: false).setActiveRide(trip);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -221,7 +236,6 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
         ),
       );
 
-      // Open live map tracking screen (TripOngoingScreen)
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -246,7 +260,6 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
         trip['status'] = 'REJECTED';
       });
 
-      // Navigate to dedicated Trip Rejected screen
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -258,13 +271,39 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
     }
   }
 
+  List<Map<String, dynamic>> _getFilteredTrips() {
+    if (_selectedCategory == TripFilterCategory.all) return _tripsList;
+
+    return _tripsList.where((t) {
+      final rawStatus = (t['status'] ?? '').toString().toUpperCase();
+      final isNew = rawStatus == 'NEW_REQUEST' || rawStatus == 'REQUESTED' || rawStatus == 'BROADCASTING' || rawStatus == 'PENDING_ADMIN' || rawStatus == 'ASSIGNED';
+      final isCompleted = rawStatus == 'COMPLETED';
+      final isCancelled = rawStatus == 'CANCELLED_PASSENGER' || rawStatus == 'CANCELLED_DRIVER' || rawStatus == 'CANCELLED' || rawStatus == 'REJECTED';
+      final isActive = rawStatus == 'ACCEPTED' || rawStatus == 'ARRIVED' || rawStatus == 'PICKED_UP' || rawStatus == 'ONGOING';
+
+      switch (_selectedCategory) {
+        case TripFilterCategory.newRequests:
+          return isNew;
+        case TripFilterCategory.active:
+          return isActive;
+        case TripFilterCategory.completed:
+          return isCompleted;
+        case TripFilterCategory.cancelled:
+          return isCancelled;
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final locale = Provider.of<DriverLocaleProvider>(context);
     final isArabic = locale.isArabic;
+    final filteredTrips = _getFilteredTrips();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFAFAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -299,55 +338,140 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Color(0xFFFF7A00)),
-            onPressed: _loadTrips,
+            onPressed: () => _loadTrips(),
           ),
         ],
       ),
       body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF7A00)))
-            : RefreshIndicator(
-                color: const Color(0xFFFF7A00),
-                onRefresh: _loadTrips,
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                  itemCount: _tripsList.length,
-                  itemBuilder: (context, index) {
-                    final trip = _tripsList[index];
-                    return FadeInUp(
-                      delay: Duration(milliseconds: 60 * index),
-                      duration: const Duration(milliseconds: 350),
-                      child: _buildAvailableTripCard(trip, index, isArabic),
-                    );
-                  },
+        child: Column(
+          children: [
+            // ── Segmented Category Filter Bar ──
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.white,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildFilterChip(
+                      label: isArabic ? 'الكل (${_tripsList.length})' : 'All (${_tripsList.length})',
+                      category: TripFilterCategory.all,
+                      isArabic: isArabic,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(
+                      label: isArabic ? 'طلبات جديدة' : 'New Requests',
+                      category: TripFilterCategory.newRequests,
+                      isArabic: isArabic,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(
+                      label: isArabic ? 'نشطة' : 'Active',
+                      category: TripFilterCategory.active,
+                      isArabic: isArabic,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(
+                      label: isArabic ? 'مكتملة' : 'Completed',
+                      category: TripFilterCategory.completed,
+                      isArabic: isArabic,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(
+                      label: isArabic ? 'ملغية' : 'Cancelled',
+                      category: TripFilterCategory.cancelled,
+                      isArabic: isArabic,
+                    ),
+                  ],
                 ),
               ),
+            ),
+            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+            // ── Main Trips List ──
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF7A00)))
+                  : RefreshIndicator(
+                      onRefresh: _loadTrips,
+                      color: const Color(0xFFFF7A00),
+                      child: filteredTrips.isEmpty
+                          ? _buildEmptyState(isArabic)
+                          : ListView.builder(
+                              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              itemCount: filteredTrips.length,
+                              itemBuilder: (context, index) {
+                                final trip = filteredTrips[index];
+                                return FadeInUp(
+                                  duration: const Duration(milliseconds: 350),
+                                  delay: Duration(milliseconds: index * 60),
+                                  child: _buildTripCard(trip, index, isArabic),
+                                );
+                              },
+                            ),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildAvailableTripCard(Map<String, dynamic> trip, int index, bool isArabic) {
-    final rawStatus = (trip['status'] ?? 'REQUESTED').toString().toUpperCase();
+  Widget _buildFilterChip({
+    required String label,
+    required TripFilterCategory category,
+    required bool isArabic,
+  }) {
+    final isSelected = _selectedCategory == category;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedCategory = category),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFF7A00) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFFF7A00).withOpacity(0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: isArabic ? 'NotoKufiArabic' : null,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+            color: isSelected ? Colors.white : const Color(0xFF475569),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTripCard(Map<String, dynamic> trip, int index, bool isArabic) {
+    final rawStatus = (trip['status'] ?? '').toString().toUpperCase();
     final cancelSource = (trip['cancelSource'] ?? '').toString().toUpperCase();
 
-    // Determine status badge type matching Screenshot 2:
-    // 1. New Request: purple badge + Reject / Accept buttons
-    // 2. Completed: green badge
-    // 3. Cancelled by Passenger: red badge with user icon
-    // 4. Cancelled by You: soft red/orange badge with car icon
-    // 5. Rejected: soft red badge with X
     final bool isNew = rawStatus == 'NEW_REQUEST' || rawStatus == 'REQUESTED' || rawStatus == 'BROADCASTING' || rawStatus == 'PENDING_ADMIN' || rawStatus == 'ASSIGNED';
     final bool isCompleted = rawStatus == 'COMPLETED';
     final bool isCancelledByPassenger = rawStatus == 'CANCELLED_PASSENGER' || (rawStatus == 'CANCELLED' && (cancelSource == 'PASSENGER' || cancelSource.isEmpty));
     final bool isCancelledByDriver = rawStatus == 'CANCELLED_DRIVER' || (rawStatus == 'CANCELLED' && cancelSource == 'DRIVER');
     final bool isRejected = rawStatus == 'REJECTED';
+    final bool isActive = rawStatus == 'ACCEPTED' || rawStatus == 'ARRIVED' || rawStatus == 'PICKED_UP' || rawStatus == 'ONGOING';
 
     // Left Border Highlight Color
     Color accentBorderColor = const Color(0xFF7E22CE); // Purple default for new
     if (isCompleted) accentBorderColor = const Color(0xFF22C55E); // Green
-    if (isCancelledByPassenger || isCancelledByDriver) accentBorderColor = const Color(0xFFEF4444); // Red
-    if (isRejected) accentBorderColor = const Color(0xFF22C55E); // Green accent bottom border in screenshot
+    if (isCancelledByPassenger || isCancelledByDriver || isRejected) accentBorderColor = const Color(0xFFEF4444); // Red
+    if (isActive) accentBorderColor = const Color(0xFFFF7A00); // Orange
 
     return GestureDetector(
       onTap: () {
@@ -363,11 +487,11 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
       },
       behavior: HitTestBehavior.opaque,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFF1F5F9), width: 1.2),
+          border: Border.all(color: const Color(0xFFF1F5F9), width: 1.3),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -381,8 +505,8 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
           child: Container(
             decoration: BoxDecoration(
               border: Border(
-                left: isArabic ? BorderSide.none : BorderSide(color: accentBorderColor, width: 4),
-                right: isArabic ? BorderSide(color: accentBorderColor, width: 4) : BorderSide.none,
+                left: isArabic ? BorderSide.none : BorderSide(color: accentBorderColor, width: 4.5),
+                right: isArabic ? BorderSide(color: accentBorderColor, width: 4.5) : BorderSide.none,
               ),
             ),
             padding: const EdgeInsets.all(14),
@@ -394,7 +518,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: const Color(0xFFF1F5F9),
+                      backgroundColor: const Color(0xFFF8FAFC),
                       child: Text(
                         (trip['name'] ?? 'P')[0].toUpperCase(),
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF334155)),
@@ -429,6 +553,14 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                         textColor: const Color(0xFF16A34A),
                         iconColor: const Color(0xFF16A34A),
                       )
+                    else if (isActive)
+                      _buildPill(
+                        icon: Icons.navigation_rounded,
+                        label: isArabic ? 'رحلة جارية' : 'In Progress',
+                        bgColor: const Color(0xFFFFF7ED),
+                        textColor: const Color(0xFFFF7A00),
+                        iconColor: const Color(0xFFFF7A00),
+                      )
                     else if (isCancelledByPassenger)
                       _buildPill(
                         icon: Icons.person_rounded,
@@ -457,29 +589,51 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // Route Row: From -> To + Chevron
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFFFF7A00)),
-                    const SizedBox(width: 4),
-                    Text(
-                      trip['from'] ?? 'Kirkuk',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.arrow_forward_rounded, size: 12, color: Color(0xFF94A3B8)),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFFFF7A00)),
-                    const SizedBox(width: 4),
-                    Text(
-                      trip['to'] ?? 'Mosul',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  ],
+                // Visual Route Timeline: From -> To + Chevron
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.circle, size: 8, color: Color(0xFF22C55E)),
+                      const SizedBox(width: 6),
+                      Text(
+                        trip['from'] ?? 'Kirkuk',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Expanded(child: Divider(color: Color(0xFFCBD5E1), thickness: 1)),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Icon(
+                                widget.isOutsideIraq ? Icons.flight_takeoff_rounded : Icons.directions_car_filled_rounded,
+                                size: 14,
+                                color: const Color(0xFFFF7A00),
+                              ),
+                            ),
+                            const Expanded(child: Divider(color: Color(0xFFCBD5E1), thickness: 1)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.location_on, size: 14, color: Color(0xFFFF7A00)),
+                      const SizedBox(width: 4),
+                      Text(
+                        trip['to'] ?? 'Mosul',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
 
                 // Meta Row: Date | Time | Passenger Count
                 Row(
@@ -493,22 +647,20 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                     const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF64748B)),
                     const SizedBox(width: 4),
                     Text(trip['time'] ?? '07:30 AM', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                    if (isNew) ...[
-                      const SizedBox(width: 8),
-                      Container(width: 1, height: 10, color: const Color(0xFFCBD5E1)),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.person_outline_rounded, size: 12, color: Color(0xFF64748B)),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${trip['seats'] ?? 1} Passenger',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                      ),
-                    ],
+                    const SizedBox(width: 8),
+                    Container(width: 1, height: 10, color: const Color(0xFFCBD5E1)),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.person_outline_rounded, size: 12, color: Color(0xFF64748B)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${trip['seats'] ?? 1} Passenger',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
 
-                // Price and Actions Row
+                // Price and Actions Row (Completely balanced, NO empty holes!)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -519,7 +671,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                         Text(
                           trip['price'] ?? '25,000 IQD',
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 14.5,
                             fontWeight: FontWeight.w900,
                             color: Color(0xFFFF7A00),
                           ),
@@ -527,7 +679,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                       ],
                     ),
 
-                    // If New Request: Show Reject & Accept Buttons
+                    // Actions Container on Right
                     if (isNew)
                       Row(
                         mainAxisSize: MainAxisSize.min,
@@ -540,7 +692,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                                 foregroundColor: const Color(0xFFDC2626),
                                 side: const BorderSide(color: Color(0xFFFCA5A5), width: 1.2),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
                               ),
                               onPressed: () => _rejectRide(trip, index),
                               child: Row(
@@ -549,7 +701,7 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                                   const SizedBox(width: 4),
                                   Text(
                                     isArabic ? 'رفض' : 'Reject',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
                                   ),
                                 ],
                               ),
@@ -574,13 +726,77 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
                                   const SizedBox(width: 4),
                                   Text(
                                     isArabic ? 'قبول' : 'Accept',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
                                   ),
                                 ],
                               ),
                             ),
                           ),
                         ],
+                      )
+                    else if (isActive)
+                      SizedBox(
+                        height: 32,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF7A00),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => TripOngoingScreen(tripData: trip)),
+                            );
+                          },
+                          icon: const Icon(Icons.navigation_rounded, size: 14, color: Colors.white),
+                          label: Text(
+                            isArabic ? 'متابعة السير' : 'Live Route',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
+                          ),
+                        ),
+                      )
+                    else if (isCompleted)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
+                            const SizedBox(width: 5),
+                            Text(
+                              isArabic ? 'تم بنجاح' : 'Completed',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF16A34A)),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFFECACA)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                            const SizedBox(width: 5),
+                            Text(
+                              isArabic ? 'ملغية' : 'Cancelled',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                            ),
+                          ],
+                        ),
                       ),
                   ],
                 ),
@@ -600,10 +816,10 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
     required Color iconColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -617,6 +833,41 @@ class _AvailableTripsScreenState extends State<AvailableTripsScreen> {
               fontWeight: FontWeight.w700,
               color: textColor,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool isArabic) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFFFEDD5)),
+            ),
+            child: const Icon(Icons.directions_car_rounded, size: 36, color: Color(0xFFFF7A00)),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            isArabic ? 'لا توجد طلبات حالياً' : 'No trips available',
+            style: TextStyle(
+              fontFamily: isArabic ? 'NotoKufiArabic' : null,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            isArabic ? 'ستظهر طلبات الركاب الجديدة هنا تلقائياً' : 'New passenger requests will appear here live',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
           ),
         ],
       ),
